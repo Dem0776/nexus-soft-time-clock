@@ -87,6 +87,24 @@ body {
 
 h1, h2, h3 { letter-spacing: -0.01em; }
 
+/* ---------- Iconos (Material Icons, auto-hospedado vía @fontsource) ---------- */
+/* El @font-face lo registra @fontsource/material-icons; esta clase es la que
+   MatIcon aplica en el host para pintar la ligadura como icono. */
+.material-icons {
+  font-family: 'Material Icons';
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
 /* Scrollbars discretos */
 * {
   scrollbar-width: thin;
