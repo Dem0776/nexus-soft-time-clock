@@ -13,6 +13,7 @@
 | [05 — Estrategia de pruebas](05-estrategia-pruebas.md) | Pirámide de pruebas, cobertura, Testcontainers |
 | [06 — Checklist de producción](06-checklist-produccion.md) | Endurecimiento de seguridad, observabilidad, escalado |
 | [07 — Manual de despliegue en Portainer](07-despliegue-portainer.md) | Stack compose, métodos Git/registry, variables, verificación |
+| [08 — Manual de redespliegue continuo](08-manual-redespliegue.md) | Flujo commit→push→redeploy, método UI y API, verificación, troubleshooting, rollback, re-siembra |
 
 ## Pruebas añadidas
 - **Testcontainers**: `ApplicationSmokeIT` levanta la app contra **PostGIS real**, ejecuta las migraciones V1–V12 y verifica el arranque + endpoints públicos.
