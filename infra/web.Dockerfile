@@ -11,6 +11,8 @@ RUN npm run build
 
 # --- Runtime ---------------------------------------------------------
 FROM nginx:1.27-alpine AS runtime
+# Config con fallback SPA (evita 404 en enlaces directos/refresh de rutas Angular)
+COPY infra/web-nginx.conf /etc/nginx/conf.d/default.conf
 # Angular >=17 emite a dist/<app>/browser
 COPY --from=build /app/dist/nexus-web/browser /usr/share/nginx/html
 EXPOSE 80
