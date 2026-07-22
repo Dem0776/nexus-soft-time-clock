@@ -84,15 +84,17 @@ services:
     networks: [nexus]
 
   nginx:
-    image: nginx:1.27-alpine
+    # Config horneada en la imagen (evita bind-mount de ruta relativa, que
+    # Portainer resuelve desde la raíz del repo y rompe el arranque).
+    build:
+      context: ..
+      dockerfile: infra/nginx.Dockerfile
     restart: unless-stopped
     depends_on:
       - backend
       - web
     ports:
       - "${HTTP_PORT:-8081}:80"      # Único punto de entrada. Detrás poné TLS.
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     networks: [nexus]
 
 networks:
