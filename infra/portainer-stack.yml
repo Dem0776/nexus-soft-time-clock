@@ -67,6 +67,9 @@ services:
       REDIS_PORT: "6379"
       MAIL_HOST: ${MAIL_HOST:-mailhog}
       MAIL_PORT: ${MAIL_PORT:-1025}
+      # Sin servidor SMTP en el stack: se desactiva el health de mail para
+      # que /actuator/health no salga DOWN (liveness/readiness no lo incluyen).
+      MANAGEMENT_HEALTH_MAIL_ENABLED: ${MANAGEMENT_HEALTH_MAIL_ENABLED:-false}
       SECURITY_QR_SECRET: ${SECURITY_QR_SECRET:?falta SECURITY_QR_SECRET}
       SECURITY_JWT_ACCESS_TTL_SECONDS: ${SECURITY_JWT_ACCESS_TTL_SECONDS:-900}
       SECURITY_JWT_REFRESH_TTL_DAYS: ${SECURITY_JWT_REFRESH_TTL_DAYS:-30}
