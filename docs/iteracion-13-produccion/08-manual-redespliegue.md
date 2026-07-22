@@ -75,60 +75,48 @@ git push origin main
 
 ---
 
-## 4. Redespliegue — Método B: API / script (automatizable)
+## 4. Redespliegue — Método B: script `scripts/redeploy.sh` (automatizable)
 
-Útil para CI o para redesplegar desde tu máquina sin abrir el navegador.
-**Importante:** por API **debes reenviar todas las env-vars** (el cuerpo las
-reemplaza) y la autenticación del repo.
+Útil para CI o para redesplegar desde tu máquina sin abrir el navegador. El
+repositorio ya incluye el script **[`scripts/redeploy.sh`](../../scripts/redeploy.sh)**:
+autentica en Portainer, dispara `git pull + redeploy` **reenviando todas las
+env-vars** (por API el cuerpo las reemplaza, así que hay que mandarlas) y
+**verifica** salud + login + deep-link tras el arranque.
 
-Script reutilizable (`scripts/redeploy.sh` — crear una vez):
-
+### Uso (una sola vez: preparar los secretos)
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-PORTAINER="https://85.239.240.43:9443"
-STACK_ID=72
-ENDPOINT_ID=2
-PUSER="Admon_dev"
-PPASS='********'                       # contraseña de Portainer (no versionar)
-
-# --- Secretos del stack (deben COINCIDIR con los ya desplegados) ---
-DB_PASSWORD='********'                  # ver pestaña Environment del stack en Portainer
-QR_SECRET='********'
-# --- Credencial git para clonar el repo privado ---
-GHUSER="Dem0776"
-GHPAT='********'                        # Personal Access Token de GitHub
-
-JWT=$(curl -sk "$PORTAINER/api/auth" -H "Content-Type: application/json" \
-  -d "{\"username\":\"$PUSER\",\"password\":\"$PPASS\"}" \
-  | sed -E 's/.*"jwt":"([^"]+)".*/\1/')
-
-curl -sk -X PUT "$PORTAINER/api/stacks/$STACK_ID/git/redeploy?endpointId=$ENDPOINT_ID" \
-  -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" \
-  -d @- <<JSON
-{
-  "repositoryAuthentication": true,
-  "repositoryUsername": "$GHUSER",
-  "repositoryPassword": "$GHPAT",
-  "repositoryReferenceName": "refs/heads/main",
-  "pullImage": false,
-  "prune": false,
-  "env": [
-    {"name":"SPRING_PROFILES_ACTIVE","value":"prod"},
-    {"name":"DB_NAME","value":"nexus"},
-    {"name":"DB_USER","value":"nexus"},
-    {"name":"DB_PASSWORD","value":"$DB_PASSWORD"},
-    {"name":"SECURITY_QR_SECRET","value":"$QR_SECRET"},
-    {"name":"HTTP_PORT","value":"8088"},
-    {"name":"LOG_LEVEL_APP","value":"INFO"}
-  ]
-}
-JSON
+cp scripts/.env.example scripts/.env     # scripts/.env está en .gitignore: NO se sube
+#   edita scripts/.env y rellena PORTAINER_PASS, GH_PAT, DB_PASSWORD, SECURITY_QR_SECRET
 ```
 
-> ⚠️ **No** subas este script con secretos reales al repo. Guárdalo fuera del control de
-> versiones o usa un gestor de secretos / variables de entorno de tu shell.
+### Cada redespliegue
+```bash
+bash scripts/redeploy.sh
+```
+Salida esperada (todo en verde):
+```
+✔ Autenticado.
+✔ Redeploy aceptado (HTTP 200).
+✔ Health UP (~54 s).
+✔ Login OK (200).
+✔ Portal/deep-link OK (200).
+✔ Redespliegue completado. App: http://85.239.240.43:8088/login
+```
+
+El script **valida** que estén los 4 secretos obligatorios y aborta con un mensaje
+claro si falta alguno. Los valores se leen de `scripts/.env` **o** del entorno
+(útil en CI: exporta las variables como *secrets* del pipeline en vez de usar el archivo).
+
+### Flags
+| Flag | Efecto |
+|---|---|
+| `--pull-image` | Fuerza re-pull/reconstrucción total de imágenes (por defecto reutiliza caché) |
+| `--no-verify` | Omite la verificación post-deploy |
+| `-h`, `--help` | Ayuda |
+
+> ⚠️ **Nunca** pongas secretos reales en `scripts/.env.example` ni los subas al repo.
+> `scripts/.env` y `*.local` están en `.gitignore`. En CI, usa el gestor de *secrets*
+> del pipeline y expórtalos como variables de entorno antes de llamar al script.
 
 ---
 
