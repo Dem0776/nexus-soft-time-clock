@@ -1,0 +1,19 @@
+package com.condor.nexussoft.timeclock.identity.domain.port.out;
+
+import com.condor.nexussoft.timeclock.identity.domain.model.Email;
+import com.condor.nexussoft.timeclock.identity.domain.model.User;
+
+import java.util.Optional;
+import java.util.UUID;
+
+/** Puerto de salida hacia la persistencia de usuarios (con sus roles/permisos). */
+public interface UserRepositoryPort {
+
+    Optional<User> findByTenantAndEmail(UUID tenantId, Email email);
+
+    Optional<User> findPlatformAdminByEmail(Email email);
+
+    Optional<User> findById(UUID id);
+
+    void save(User user);
+}

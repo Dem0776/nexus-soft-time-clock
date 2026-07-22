@@ -1,0 +1,73 @@
+# =====================================================================
+# Configuración base — Nexus Soft Time Clock backend
+# Todo valor sensible/ambiental se inyecta por variable de entorno (12-factor).
+# =====================================================================
+spring:
+  application:
+    name: nexus-time-clock
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/nexus}
+    username: ${DB_USER:nexus}
+    password: ${DB_PASSWORD:nexus}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN:5}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none                # Flyway es dueño del esquema (tipos PostGIS/citext).
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        format_sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 60s   # KPIs del dashboard cacheados 60s (RNF-01)
+
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+
+server:
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework   # respeta X-Forwarded-* tras NGINX (TLS termination)
+
+# Observabilidad (Prometheus/Grafana, RNF-11)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true                 # liveness/readiness para Kubernetes
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# OpenAPI / Swagger UI
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    root: INFO
+    com.condor.nexussoft.timeclock: ${LOG_LEVEL_APP:DEBUG}

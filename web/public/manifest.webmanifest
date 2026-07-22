@@ -1,0 +1,17 @@
+{
+  "name": "Nexus Soft Time Clock",
+  "short_name": "Nexus TC",
+  "theme_color": "#303f9f",
+  "background_color": "#f4f6fb",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

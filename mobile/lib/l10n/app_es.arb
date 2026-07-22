@@ -1,0 +1,6 @@
+{
+  "@@locale": "es",
+  "appTitle": "Nexus Soft Time Clock",
+  "homeUnderConstruction": "App en construcción",
+  "homeMessage": "El registro de asistencia (QR + GPS + offline) se implementa en las próximas iteraciones."
+}

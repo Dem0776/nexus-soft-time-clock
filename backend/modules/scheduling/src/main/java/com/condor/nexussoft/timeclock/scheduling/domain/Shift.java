@@ -1,0 +1,72 @@
+package com.condor.nexussoft.timeclock.scheduling.domain;
+
+import java.time.LocalTime;
+import java.util.UUID;
+
+/** Turno (RF-08): definición horaria con tolerancias y ventana de registro (RN-15, RN-16). */
+public class Shift {
+
+    private final UUID id;
+    private final UUID tenantId;
+    private final UUID scheduleId;
+    private String name;
+    private LocalTime startTime;
+    private LocalTime endTime;
+    private boolean crossesMidnight;
+    private int breakMinutes;
+    private int lateToleranceMin;
+    private int earlyToleranceMin;
+    private int windowBeforeMin;
+    private int windowAfterMin;
+
+    public Shift(UUID id, UUID tenantId, UUID scheduleId, String name, LocalTime startTime, LocalTime endTime,
+                 boolean crossesMidnight, int breakMinutes, int lateToleranceMin, int earlyToleranceMin,
+                 int windowBeforeMin, int windowAfterMin) {
+        this.id = id;
+        this.tenantId = tenantId;
+        this.scheduleId = scheduleId;
+        this.name = name;
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.crossesMidnight = crossesMidnight;
+        this.breakMinutes = breakMinutes;
+        this.lateToleranceMin = lateToleranceMin;
+        this.earlyToleranceMin = earlyToleranceMin;
+        this.windowBeforeMin = windowBeforeMin;
+        this.windowAfterMin = windowAfterMin;
+    }
+
+    public static Shift create(UUID tenantId, UUID scheduleId, String name, LocalTime startTime, LocalTime endTime,
+                               boolean crossesMidnight, int breakMinutes, int lateToleranceMin,
+                               int earlyToleranceMin, int windowBeforeMin, int windowAfterMin) {
+        return new Shift(UUID.randomUUID(), tenantId, scheduleId, name, startTime, endTime, crossesMidnight,
+                breakMinutes, lateToleranceMin, earlyToleranceMin, windowBeforeMin, windowAfterMin);
+    }
+
+    public void update(String name, LocalTime startTime, LocalTime endTime, boolean crossesMidnight,
+                       int breakMinutes, int lateToleranceMin, int earlyToleranceMin,
+                       int windowBeforeMin, int windowAfterMin) {
+        this.name = name;
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.crossesMidnight = crossesMidnight;
+        this.breakMinutes = breakMinutes;
+        this.lateToleranceMin = lateToleranceMin;
+        this.earlyToleranceMin = earlyToleranceMin;
+        this.windowBeforeMin = windowBeforeMin;
+        this.windowAfterMin = windowAfterMin;
+    }
+
+    public UUID id() { return id; }
+    public UUID tenantId() { return tenantId; }
+    public UUID scheduleId() { return scheduleId; }
+    public String name() { return name; }
+    public LocalTime startTime() { return startTime; }
+    public LocalTime endTime() { return endTime; }
+    public boolean crossesMidnight() { return crossesMidnight; }
+    public int breakMinutes() { return breakMinutes; }
+    public int lateToleranceMin() { return lateToleranceMin; }
+    public int earlyToleranceMin() { return earlyToleranceMin; }
+    public int windowBeforeMin() { return windowBeforeMin; }
+    public int windowAfterMin() { return windowAfterMin; }
+}

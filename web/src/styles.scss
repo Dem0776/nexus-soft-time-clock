@@ -1,0 +1,157 @@
+// Estilos globales + sistema de diseño (SaaS corporativo, acento índigo).
+// Tema M3 propio: claro sobre <html>, oscuro bajo `body.dark` (ThemeService).
+@use '@angular/material' as mat;
+
+@include mat.core();
+
+$type: (
+  plain-family: ('Inter Variable', Inter, system-ui, 'Segoe UI', Roboto, sans-serif),
+  brand-family: ('Inter Variable', Inter, system-ui, 'Segoe UI', Roboto, sans-serif),
+);
+
+$light-theme: mat.define-theme(
+  (
+    color: (theme-type: light, primary: mat.$blue-palette, tertiary: mat.$azure-palette),
+    typography: $type,
+    density: (scale: 0),
+  )
+);
+
+$dark-theme: mat.define-theme(
+  (
+    color: (theme-type: dark, primary: mat.$blue-palette, tertiary: mat.$azure-palette),
+    typography: $type,
+  )
+);
+
+html {
+  @include mat.all-component-themes($light-theme);
+  height: 100%;
+  color-scheme: light;
+}
+body.dark {
+  @include mat.all-component-colors($dark-theme);
+  color-scheme: dark;
+}
+
+/* ---------- Tokens de diseño ---------- */
+:root {
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.1);
+  --shadow-2: 0 6px 16px rgba(16, 24, 40, 0.08), 0 2px 6px rgba(16, 24, 40, 0.05);
+
+  --app-bg: #f4f6fb;
+  --surface: #ffffff;
+  --surface-2: #f7f9fc;
+  --border: rgba(16, 24, 40, 0.1);
+  --text: #101828;
+  --text-muted: #667085;
+  --brand: #3949ab;
+
+  --success: #0f7a52; --success-bg: #e5f6ef;
+  --warning: #b54708; --warning-bg: #fdf0e6;
+  --danger:  #b42318; --danger-bg:  #fdecea;
+  --info:    #1856c9; --info-bg:    #e8f0fe;
+  --neutral: #475467; --neutral-bg: #eef1f5;
+}
+body.dark {
+  --app-bg: #0f1420;
+  --surface: #171c28;
+  --surface-2: #1e2433;
+  --border: rgba(255, 255, 255, 0.1);
+  --text: #e6e9f0;
+  --text-muted: #98a2b3;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 6px 18px rgba(0, 0, 0, 0.45);
+
+  --success: #6ee7b7; --success-bg: rgba(16, 185, 129, 0.16);
+  --warning: #fdba74; --warning-bg: rgba(245, 158, 11, 0.16);
+  --danger:  #fca5a5; --danger-bg:  rgba(239, 68, 68, 0.16);
+  --info:    #93c5fd; --info-bg:    rgba(59, 130, 246, 0.16);
+  --neutral: #cbd5e1; --neutral-bg: rgba(148, 163, 184, 0.16);
+}
+
+/* ---------- Base ---------- */
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Inter Variable', Inter, system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+body {
+  background: var(--app-bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3 { letter-spacing: -0.01em; }
+
+/* Scrollbars discretos */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* ---------- Cards ---------- */
+.mat-mdc-card {
+  background: var(--surface) !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-1) !important;
+}
+.mat-mdc-card-header { padding: var(--sp-5) var(--sp-5) 0; }
+.mat-mdc-card-content { padding: var(--sp-5); }
+.mat-mdc-card-title { font-weight: 650; font-size: 1.05rem; }
+
+/* ---------- Tablas ---------- */
+.mat-mdc-table {
+  background: transparent;
+  width: 100%;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.mat-mdc-header-row { background: var(--surface-2); }
+.mat-mdc-header-cell {
+  font-size: 0.72rem !important;
+  font-weight: 650 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted) !important;
+}
+.mat-mdc-row { transition: background 0.12s ease; }
+.mat-mdc-row:hover { background: var(--surface-2); }
+.mat-mdc-cell, .mat-mdc-header-cell { border-bottom-color: var(--border) !important; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
+
+/* ---------- Toolbar / superficies del shell ---------- */
+.mat-toolbar { box-shadow: var(--shadow-2); position: relative; z-index: 3; }
+.mat-sidenav { background: var(--surface) !important; border-right: 1px solid var(--border) !important; }
+.mat-sidenav-content, .mat-drawer-content { background: var(--app-bg) !important; }
+
+/* ---------- Chips de estado (usados por StatusChipComponent) ---------- */
+.status-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 10px; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600; line-height: 1.5;
+  white-space: nowrap;
+}
+.status-chip::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.status-chip.success { color: var(--success); background: var(--success-bg); }
+.status-chip.warning { color: var(--warning); background: var(--warning-bg); }
+.status-chip.danger  { color: var(--danger);  background: var(--danger-bg); }
+.status-chip.info    { color: var(--info);    background: var(--info-bg); }
+.status-chip.neutral { color: var(--neutral); background: var(--neutral-bg); }
+
+/* ---------- Utilidades ---------- */
+.page { max-width: 1200px; margin: 0 auto; }
+.full-width { width: 100%; }
+.spacer { flex: 1 1 auto; }
+.muted { color: var(--text-muted); }
+.error-text { color: var(--danger); }
+.form-grid { display: flex; gap: var(--sp-3); flex-wrap: wrap; align-items: baseline; }
+.toolbar-actions { display: flex; gap: var(--sp-2); align-items: center; }

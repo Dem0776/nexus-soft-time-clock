@@ -1,0 +1,4 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- La conexión al servidor de recarga (hot reload) en debug requiere INTERNET. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>

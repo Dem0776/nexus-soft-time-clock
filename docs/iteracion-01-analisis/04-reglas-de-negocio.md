@@ -1,0 +1,61 @@
+# 04 — Reglas de negocio
+
+Reglas expresadas de forma **verificable**. Cada una será cubierta por pruebas automatizadas en su iteración.
+
+## Grupo A — Validación de asistencia (RF-15, RF-16, RF-17)
+
+| Código | Regla |
+|---|---|
+| **RN-10** | Un registro de asistencia es **válido** solo si supera TODAS las validaciones aplicables: QR vigente, GPS dentro de geocerca, precisión ≤ umbral, dentro de ventana de horario/turno y sin banderas antifraude bloqueantes. |
+| **RN-11** | La **hora oficial** de un registro es la **hora del servidor** al momento de recibirlo; la hora del dispositivo se guarda como metadato pero **no es autoritativa**. |
+| **RN-12** | Los eventos deben respetar una **secuencia válida** por jornada: `ENTRADA → (INICIO_DESCANSO → FIN_DESCANSO)* → SALIDA`. No se permite SALIDA sin ENTRADA abierta, ni ENTRADA duplicada sin cierre. |
+| **RN-13** | El **radio permitido** (geocerca circular) se evalúa como distancia geodésica entre la posición reportada y el centro del sitio ≤ `radio_m`. Con geocerca poligonal, la posición debe estar contenida en el polígono. |
+| **RN-14** | La **precisión** reportada por el GPS debe ser ≤ `precision_max_m` del centro (por defecto configurable, p.ej. 50 m). Precisión mayor → `LOW_GPS_ACCURACY`. |
+| **RN-15** | La **ventana de registro** de entrada admite tolerancia configurable antes/después del inicio de turno. Registro fuera de ventana → incidencia (retardo/anticipo) según política, no necesariamente rechazo. |
+| **RN-16** | Un **retardo** se genera cuando la ENTRADA ocurre después de `inicio_turno + tolerancia`. |
+| **RN-17** | Las **horas trabajadas** se calculan entre ENTRADA y SALIDA descontando descansos; las **horas extra** son el excedente sobre la jornada del turno. |
+
+## Grupo B — Antifraude (RF-20, RF-28)
+
+| Código | Regla |
+|---|---|
+| **RN-20** | Si el dispositivo reporta **mock location** activa, el registro se marca `FRAUD_MOCK_LOCATION` y se rechaza (política por defecto; configurable a "marcar y permitir revisión"). |
+| **RN-21** | Si el dispositivo está **rooteado / con jailbreak**, se marca `FRAUD_ROOTED_DEVICE` según política del tenant (rechazar o marcar). |
+| **RN-22** | Si el **GPS está deshabilitado** o no se obtiene fix, no se permite registrar (`GPS_UNAVAILABLE`). |
+| **RN-23** | Se detecta la presencia de **apps de spoofing de GPS** conocidas; si están activas, se marca `FRAUD_GPS_SPOOF_APP`. |
+| **RN-24** | Un registro con **precisión insuficiente** no puede aprobarse automáticamente (ver RN-14). |
+| **RN-25** | El **QR del centro no es un valor estático**: incorpora un secreto firmado + `nonce` + vigencia. Un QR **expirado** o con firma inválida → `INVALID_QR`. |
+| **RN-26** | **Reutilización fraudulenta de QR / replay:** cada registro incluye un identificador único de operación (client-generated UUID) + nonce del QR; el servidor **rechaza duplicados** (idempotencia) y registros con nonce ya consumido fuera de ventana → `REPLAY_DETECTED`. |
+| **RN-27** | **Device binding (RF-28):** un colaborador opera con dispositivo(s) registrado(s); un dispositivo no reconocido genera verificación adicional o bloqueo según política. |
+| **RN-28** | Toda **bandera antifraude** queda registrada en el evento y visible para el supervisor, independientemente de si bloqueó o no el registro. |
+
+## Grupo C — Multi-tenant y seguridad (RF-13, RF-22)
+
+| Código | Regla |
+|---|---|
+| **RN-30** | Todo dato de negocio pertenece a un **tenant (empresa)**; ninguna consulta puede devolver datos de otro tenant (aislamiento obligatorio a nivel de aplicación y de datos). |
+| **RN-31** | El `tenant_id` se deriva del **token/contexto de sesión**, nunca de un parámetro manipulable por el cliente. |
+| **RN-32** | Un usuario (salvo SUPER_ADMIN) pertenece a **un solo tenant**. |
+| **RN-33** | Un supervisor solo accede a datos de los **centros/proyectos** que tiene asignados. |
+| **RN-40** | Tras `N` (configurable, p.ej. 5) intentos fallidos de login, la cuenta se bloquea temporalmente (backoff). |
+| **RN-41** | Los `accessToken` son de **vida corta**; los `refreshToken` rotan en cada uso y se **revoca la familia** ante reutilización. |
+| **RN-42** | La información sensible (credenciales, datos personales, evidencias) se almacena **cifrada**; el transporte es **siempre HTTPS/TLS**. |
+| **RN-43** | Toda acción que crea/modifica/elimina datos debe generar un registro de **auditoría** (ver Grupo E). |
+
+## Grupo D — Offline y sincronización (RF-21)
+
+| Código | Regla |
+|---|---|
+| **RN-50** | La app es **offline-first**: un registro se persiste localmente antes de intentar enviarse; la falta de red no puede causar pérdida de registros. |
+| **RN-51** | Cada registro lleva un **UUID de operación** generado en el cliente; el backend es **idempotente** respecto a ese UUID (reenvíos no duplican). |
+| **RN-52** | La **sincronización** es automática al recuperar conectividad, con **reintentos con backoff exponencial** y límite de intentos antes de marcar error. |
+| **RN-53** | **Resolución de conflictos:** ante discrepancias, la validación **del servidor es autoritativa** (hora, geocerca, antifraude). Un registro offline puede ser **aceptado, marcado con incidencia o rechazado** al sincronizar. |
+| **RN-54** | El cliente recibe **confirmación de sincronización** con el resultado por registro y actualiza su estado local. |
+
+## Grupo E — Auditoría (RF-12)
+
+| Código | Regla |
+|---|---|
+| **RN-60** | Cada evento de auditoría almacena: **usuario, fecha, hora, IP, navegador/user-agent, dispositivo, acción, valores anteriores y valores nuevos**. |
+| **RN-61** | Los registros de auditoría son **inmutables** (append-only); no se permite su edición ni borrado por usuarios de negocio. |
+| **RN-62** | La auditoría respeta el aislamiento multi-tenant (un auditor solo ve su tenant). |

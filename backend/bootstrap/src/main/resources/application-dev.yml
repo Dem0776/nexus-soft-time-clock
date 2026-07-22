@@ -1,0 +1,18 @@
+# Perfil de desarrollo. Se activa con SPRING_PROFILES_ACTIVE=dev
+# Apunta a los servicios del docker-compose de infra/.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/nexus
+    username: nexus
+    password: nexus
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  mail:
+    host: localhost
+    port: 1025   # MailHog
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG

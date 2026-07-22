@@ -1,0 +1,104 @@
+# =====================================================================
+# Stack de despliegue para Portainer — Nexus Soft Time Clock
+# Servicios mínimos productivos: postgres + redis + backend + web + nginx.
+#
+# Dos formas de usarlo en Portainer:
+#   A) Repository (build): Portainer clona el repo y construye las imágenes
+#      con los Dockerfiles (secciones `build:` activas). Compose path:
+#      infra/portainer-stack.yml
+#   B) Registry (imágenes pre-construidas): comenta los bloques `build:` y
+#      descomenta las líneas `image:` apuntando a tu registry.
+#
+# Todas las credenciales se inyectan por variables de entorno (pestaña
+# "Environment variables" de Portainer o el .env del stack). Ver el manual:
+# docs/iteracion-13-produccion/07-despliegue-portainer.md
+# =====================================================================
+name: nexus-time-clock
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-nexus}
+      POSTGRES_USER: ${DB_USER:-nexus}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [nexus]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-nexus} -d ${DB_NAME:-nexus}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redisdata:/data
+    networks: [nexus]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    # --- A) Build desde el repo (método Repository de Portainel) ---
+    build:
+      context: ..
+      dockerfile: infra/backend.Dockerfile
+    # --- B) Imagen pre-construida en tu registry (comenta el bloque build) ---
+    # image: ${REGISTRY:-registry.midominio.com}/nexus/backend:${TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-nexus}
+      DB_USER: ${DB_USER:-nexus}
+      DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      MAIL_HOST: ${MAIL_HOST:-mailhog}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      SECURITY_QR_SECRET: ${SECURITY_QR_SECRET:?falta SECURITY_QR_SECRET}
+      SECURITY_JWT_ACCESS_TTL_SECONDS: ${SECURITY_JWT_ACCESS_TTL_SECONDS:-900}
+      SECURITY_JWT_REFRESH_TTL_DAYS: ${SECURITY_JWT_REFRESH_TTL_DAYS:-30}
+      LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
+    networks: [nexus]
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/web.Dockerfile
+    # image: ${REGISTRY:-registry.midominio.com}/nexus/web:${TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks: [nexus]
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - web
+    ports:
+      - "${HTTP_PORT:-8081}:80"      # Único punto de entrada. Detrás poné TLS.
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks: [nexus]
+
+networks:
+  nexus:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:

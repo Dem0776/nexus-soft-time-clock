@@ -1,0 +1,9 @@
+/.gradle/
+/build/
+/captures/
+local.properties
+key.properties
+**/*.keystore
+**/*.jks
+# Firebase: añade tu propio archivo, NO lo versiones
+app/google-services.json

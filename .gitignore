@@ -1,0 +1,38 @@
+# =========================
+# Nexus Soft Time Clock — .gitignore raíz
+# =========================
+
+# --- Secretos / entorno ---
+.env
+infra/.env
+*.local
+
+# --- Backend (Java/Maven) ---
+backend/**/target/
+*.class
+*.jar
+!**/.mvn/wrapper/maven-wrapper.jar
+
+# --- Web (Angular/Node) ---
+web/node_modules/
+web/dist/
+web/.angular/
+web/coverage/
+
+# --- Mobile (Flutter) ---
+mobile/.dart_tool/
+mobile/build/
+mobile/.flutter-plugins*
+mobile/pubspec.lock
+mobile/**/*.g.dart
+mobile/**/*.freezed.dart
+
+# --- Infra / datos locales ---
+*.pid
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
