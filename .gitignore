@@ -5,6 +5,7 @@
 # --- Secretos / entorno ---
 .env
 infra/.env
+scripts/.env
 *.local
 
 # --- Backend (Java/Maven) ---
