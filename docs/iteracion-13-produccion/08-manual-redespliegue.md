@@ -118,6 +118,35 @@ claro si falta alguno. Los valores se leen de `scripts/.env` **o** del entorno
 > `scripts/.env` y `*.local` están en `.gitignore`. En CI, usa el gestor de *secrets*
 > del pipeline y expórtalos como variables de entorno antes de llamar al script.
 
+### Método C — automático en cada push (GitHub Actions)
+
+El repo incluye el workflow **[`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml)**,
+que ejecuta `scripts/redeploy.sh` automáticamente en cada `push` a `main`
+(ignorando cambios que no afectan al stack: `docs/**`, `**/*.md`, `mobile/**`,
+`.github/**`). También admite disparo manual desde **Actions → Deploy → Run workflow**
+(con opciones *pull_image* y *verify*).
+
+**Configuración única — crear los *secrets* del repo** en
+`Settings → Secrets and variables → Actions → New repository secret`:
+
+| Secret | Valor |
+|---|---|
+| `PORTAINER_PASS` | contraseña del usuario de Portainer |
+| `GH_PAT` | Personal Access Token de GitHub con lectura del repo (para que Portainer lo clone) |
+| `DB_PASSWORD` | **la misma** del stack desplegado (pestaña Environment del stack) |
+| `SECURITY_QR_SECRET` | idem |
+
+Variables opcionales (`Settings → … → Variables`) para *overrides*: `PORTAINER_URL`,
+`APP_URL`, `STACK_ID`, `ENDPOINT_ID`, `HTTP_PORT`. Si no se definen, el script usa sus
+valores por defecto.
+
+> **Prerrequisito de red:** los *runners* de GitHub (alojados) deben poder alcanzar
+> `85.239.240.43` en los puertos `9443` (API Portainer) y `8088` (verificación). Si el
+> servidor filtra por IP de origen, usa un **runner self-hosted** en una red con acceso,
+> o desactiva la verificación con la opción *verify=false* en el disparo manual.
+> Mientras no existan los 4 *secrets*, el job fallará a propósito en la validación inicial
+> del script (mensaje: "faltan variables obligatorias").
+
 ---
 
 ## 5. Verificación post-despliegue (obligatoria)

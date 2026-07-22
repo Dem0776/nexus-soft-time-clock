@@ -1,0 +1,76 @@
+# =====================================================================
+# Deploy — redespliega el stack en Portainer en cada push a main.
+# Reutiliza scripts/redeploy.sh (autentica, git pull+redeploy, verifica).
+#
+# Portainer construye las imágenes en su host; el runner solo dispara la
+# orden vía API, así que este job es ligero.
+#
+# Requiere estos SECRETS del repo (Settings → Secrets and variables → Actions):
+#   PORTAINER_PASS        contraseña del usuario de Portainer
+#   GH_PAT                Personal Access Token con acceso de lectura al repo
+#                         (Portainer lo usa para clonar el repo privado)
+#   DB_PASSWORD           debe COINCIDIR con la del stack ya desplegado
+#   SECURITY_QR_SECRET    idem
+# Opcional (si cambian): variables PORTAINER_URL, APP_URL, STACK_ID, etc.
+# =====================================================================
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    # No redesplegar por cambios que no afectan al stack productivo.
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'mobile/**'
+      - '.github/**'      # editar workflows no redespliega la app
+      - '.gitignore'
+      - '.editorconfig'
+      - '.gitattributes'
+      - 'scripts/.env.example'
+  workflow_dispatch:
+    inputs:
+      pull_image:
+        description: 'Forzar reconstrucción total de imágenes'
+        type: boolean
+        default: false
+      verify:
+        description: 'Verificar health/login tras el deploy'
+        type: boolean
+        default: true
+
+# Evita redespliegues solapados (encola, no cancela el que está en curso).
+concurrency:
+  group: deploy-portainer
+  cancel-in-progress: false
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    # Deja registro de despliegue en GitHub; puedes añadirle reglas de
+    # protección/aprobación en Settings → Environments.
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Redeploy stack en Portainer
+        env:
+          # Secretos (obligatorios) — el script aborta si falta alguno.
+          PORTAINER_PASS: ${{ secrets.PORTAINER_PASS }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          SECURITY_QR_SECRET: ${{ secrets.SECURITY_QR_SECRET }}
+          # Overrides opcionales (si no se definen, el script usa sus defaults).
+          PORTAINER_URL: ${{ vars.PORTAINER_URL }}
+          APP_URL: ${{ vars.APP_URL }}
+          STACK_ID: ${{ vars.STACK_ID }}
+          ENDPOINT_ID: ${{ vars.ENDPOINT_ID }}
+          HTTP_PORT: ${{ vars.HTTP_PORT }}
+        run: |
+          set -euo pipefail
+          FLAGS=""
+          if [ "${{ inputs.pull_image }}" = "true" ]; then FLAGS="$FLAGS --pull-image"; fi
+          if [ "${{ inputs.verify }}" = "false" ]; then FLAGS="$FLAGS --no-verify"; fi
+          echo "Ejecutando: scripts/redeploy.sh$FLAGS"
+          bash scripts/redeploy.sh $FLAGS
