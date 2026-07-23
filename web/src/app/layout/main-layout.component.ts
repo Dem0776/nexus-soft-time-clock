@@ -40,26 +40,32 @@ import { ThemeService } from '../core/theme/theme.service';
       mat-sidenav { width: 264px; }
       .brand {
         display: flex; align-items: center; gap: 12px;
-        padding: 18px 20px; border-bottom: 1px solid var(--border);
+        padding: 18px 20px; border-bottom: 1px solid var(--sidenav-border);
       }
       .brand .logo { width: 34px; height: 34px; flex: 0 0 auto; }
-      .brand .name { font-weight: 700; font-size: 1.05rem; line-height: 1; }
-      .brand .tag { font-size: 0.72rem; color: var(--text-muted); }
+      .brand .name { font-weight: 700; font-size: 1.05rem; line-height: 1; color: var(--sidenav-text); }
+      .brand .tag { font-size: 0.72rem; color: var(--sidenav-text-muted); }
 
       .nav-group {
-        padding: 16px 20px 6px; font-size: 0.7rem; font-weight: 700;
-        text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
+        padding: 18px 20px 6px; font-size: 0.7rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.06em; color: var(--sidenav-text-muted);
+      }
+      mat-nav-list a.nav-item,
+      mat-nav-list a.nav-item mat-icon,
+      mat-nav-list a.nav-item span {
+        color: var(--sidenav-text);
       }
       a.nav-item {
         margin: 2px 10px; border-radius: 10px;
         border-left: 3px solid transparent;
       }
+      a.nav-item:hover:not(.active) { background: var(--sidenav-surface); }
       a.nav-item.active {
-        background: color-mix(in srgb, var(--brand) 12%, transparent);
-        border-left-color: var(--brand);
-        color: var(--brand);
+        background: var(--sidenav-active-bg);
+        border-left-color: var(--sidenav-brand);
+        color: var(--sidenav-active-text) !important;
       }
-      a.nav-item.active mat-icon { color: var(--brand); }
+      a.nav-item.active mat-icon, a.nav-item.active span { color: var(--sidenav-active-text) !important; }
 
       .avatar {
         width: 32px; height: 32px; border-radius: 50%;

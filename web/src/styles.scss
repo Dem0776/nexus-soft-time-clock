@@ -67,6 +67,17 @@ body.dark {
   --font-body: 14px;
   --font-small: 12px;
   --font-caption: 11px;
+
+  /* Sidenav: fondo oscuro fijo, independiente del tema claro/oscuro del contenido
+     (identidad visual del shell, igual en ambos modos — ver mockups de referencia). */
+  --sidenav-bg: #0b1020;
+  --sidenav-surface: #131a2c;
+  --sidenav-border: rgba(255, 255, 255, 0.08);
+  --sidenav-text: #e6e9f5;
+  --sidenav-text-muted: #8b93ad;
+  --sidenav-brand: #5c6bc0;
+  --sidenav-active-bg: rgba(92, 107, 192, 0.22);
+  --sidenav-active-text: #a9b4ff;
 }
 body.dark {
   --app-bg: #0f1420;
@@ -168,7 +179,7 @@ h1, h2, h3 { letter-spacing: -0.01em; }
 
 /* ---------- Toolbar / superficies del shell ---------- */
 .mat-toolbar { box-shadow: var(--shadow-2); position: relative; z-index: 3; }
-.mat-sidenav { background: var(--surface) !important; border-right: 1px solid var(--border) !important; }
+.mat-sidenav { background: var(--sidenav-bg) !important; border-right: 1px solid var(--sidenav-border) !important; }
 .mat-sidenav-content, .mat-drawer-content { background: var(--app-bg) !important; }
 
 /* ---------- Chips de estado (usados por StatusChipComponent) ---------- */

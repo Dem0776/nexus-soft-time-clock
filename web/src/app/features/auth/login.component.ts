@@ -6,8 +6,21 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { AuthService } from '../../core/auth/auth.service';
+
+interface Feature {
+  icon: string;
+  title: string;
+  text: string;
+}
+
+const FEATURES: readonly Feature[] = [
+  { icon: 'my_location', title: 'Geocercas y validación GPS', text: 'Fichaje por QR con antifraude y radio configurable por centro.' },
+  { icon: 'insights', title: 'Visibilidad en tiempo real', text: 'Mapa en vivo, incidencias y reportes exportables al instante.' },
+  { icon: 'domain', title: 'Multi-empresa por diseño', text: 'Un panel para administrar todos los centros de tu organización.' },
+];
 
 /** Pantalla de inicio de sesión (RF-01): layout partido con panel de marca y formulario. */
 @Component({
@@ -20,59 +33,92 @@ import { AuthService } from '../../core/auth/auth.service';
     MatButtonModule,
     MatIconModule,
     MatProgressBarModule,
+    MatTooltipModule,
   ],
   styles: [
     `
-      .auth { display: flex; min-height: 100vh; }
+      .auth { display: flex; min-height: 100vh; background: var(--surface); }
+
       .hero {
         flex: 1 1 0;
-        background: linear-gradient(155deg, #3949ab 0%, #2c3690 55%, #1a2158 100%);
-        color: #fff;
-        padding: var(--sp-6);
+        background: var(--app-bg);
+        color: var(--text);
+        padding: var(--sp-6) clamp(32px, 6vw, 72px);
         display: flex;
         flex-direction: column;
         justify-content: space-between;
         position: relative;
         overflow: hidden;
+        border-right: 1px solid var(--border);
       }
       .hero::before {
         content: '';
         position: absolute;
         inset: 0;
-        background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+        background-image: radial-gradient(var(--border-strong) 1px, transparent 1px);
         background-size: 22px 22px;
-        opacity: 0.5;
+        opacity: 0.6;
       }
-      .hero::after {
-        content: '';
+      .hero-art {
         position: absolute;
-        right: -140px;
-        bottom: -140px;
-        width: 360px;
-        height: 360px;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.06);
+        right: clamp(-80px, -6vw, -20px);
+        bottom: -60px;
+        width: min(52vw, 480px);
+        height: auto;
+        opacity: 0.8;
+        pointer-events: none;
       }
-      .hero .brand { display: flex; align-items: center; gap: 12px; position: relative; }
+      .hero-top { position: relative; }
+      .hero .brand { display: flex; align-items: center; gap: var(--sp-3); }
       .hero .logo { width: 40px; height: 40px; flex: 0 0 auto; }
-      .hero h1 { font-size: 2.2rem; margin: 0 0 12px; line-height: 1.15; font-weight: 700; letter-spacing: -0.01em; position: relative; }
-      .hero p { font-size: var(--font-section-title); opacity: 0.82; max-width: 440px; position: relative; }
-      .hero .foot { font-size: var(--font-small); opacity: 0.65; position: relative; }
-      .features { display: flex; flex-direction: column; gap: var(--sp-3); margin-top: var(--sp-5); position: relative; }
-      .features div { display: flex; align-items: center; gap: var(--sp-3); opacity: 0.94; font-size: var(--font-body); }
-      .features mat-icon { flex: 0 0 auto; opacity: 0.85; }
+      .hero .brand-word { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+
+      .hero-main { position: relative; margin-top: var(--sp-6); }
+      .hero h1 { font-size: clamp(1.9rem, 3vw, 2.5rem); margin: 0 0 var(--sp-3); line-height: 1.15; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+      .hero .lead { font-size: var(--font-section-title); color: var(--text-muted); max-width: 440px; margin: 0; }
+
+      .features { display: flex; flex-direction: column; gap: var(--sp-4); margin-top: var(--sp-6); position: relative; }
+      .feature { display: flex; align-items: flex-start; gap: var(--sp-3); }
+      .feature-icon {
+        flex: 0 0 auto;
+        width: 40px; height: 40px;
+        border-radius: var(--radius-md);
+        background: var(--brand-soft);
+        display: grid; place-items: center;
+      }
+      .feature-icon mat-icon { color: var(--brand); }
+      .feature-title { font-weight: 650; font-size: var(--font-body); margin: 0 0 2px; color: var(--text); }
+      .feature-text { font-size: var(--font-small); color: var(--text-muted); margin: 0; max-width: 340px; }
+
+      .hero .foot { font-size: var(--font-caption); color: var(--text-soft); position: relative; }
 
       .panel {
-        flex: 0 0 clamp(380px, 40%, 520px);
+        flex: 0 0 clamp(400px, 40%, 520px);
         display: flex;
         align-items: center;
         justify-content: center;
         padding: var(--sp-6);
         background: var(--surface);
       }
-      .card { width: 100%; max-width: 360px; }
-      .card h2 { margin: 0 0 4px; font-size: var(--font-section-title); font-weight: 700; }
-      .card .sub { color: var(--text-muted); margin: 0 0 var(--sp-5); font-size: var(--font-body); }
+      .card { width: 100%; max-width: 380px; }
+      .avatar {
+        width: 56px; height: 56px;
+        border-radius: 50%;
+        background: var(--brand-soft);
+        display: grid; place-items: center;
+        margin: 0 auto var(--sp-4);
+      }
+      .avatar mat-icon { color: var(--brand); font-size: 28px; width: 28px; height: 28px; }
+      .card h2 { margin: 0 0 4px; font-size: var(--font-section-title); font-weight: 700; text-align: center; }
+      .card .sub { color: var(--text-muted); margin: 0 0 var(--sp-5); font-size: var(--font-body); text-align: center; }
+
+      .secure-note {
+        display: flex; align-items: center; justify-content: center; gap: 6px;
+        margin-top: var(--sp-4);
+        color: var(--text-soft);
+        font-size: var(--font-caption);
+      }
+      .secure-note mat-icon { font-size: 14px; width: 14px; height: 14px; }
 
       @media (max-width: 900px) {
         .hero { display: none; }
@@ -83,57 +129,104 @@ import { AuthService } from '../../core/auth/auth.service';
   template: `
     <div class="auth">
       <div class="hero">
-        <div class="brand">
-          <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
-            <rect width="64" height="64" rx="16" fill="rgba(255,255,255,.12)" />
-            <circle cx="32" cy="32" r="18" fill="none" stroke="#fff" stroke-width="3.5" />
-            <path d="M32 22v11l7 5" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          <strong style="font-size:1.2rem">Nexus Soft Time Clock</strong>
-        </div>
-        <div>
-          <h1>Control de asistencia<br />sin fricción.</h1>
-          <p>Registro por QR + GPS con geocercas y antifraude, visibilidad en tiempo real y reportería lista para tu operación.</p>
+        <div class="hero-top">
+          <div class="brand">
+            <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
+              <defs>
+                <linearGradient id="loginlogo" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#5c6bc0" />
+                  <stop offset="1" stop-color="#303f9f" />
+                </linearGradient>
+              </defs>
+              <rect width="64" height="64" rx="16" fill="url(#loginlogo)" />
+              <circle cx="32" cy="32" r="18" fill="none" stroke="#fff" stroke-width="3.5" />
+              <path d="M32 22v11l7 5" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span class="brand-word">Nexus Soft Time Clock</span>
+          </div>
+
+          <div class="hero-main">
+            <h1>Control de asistencia<br />sin fricción.</h1>
+            <p class="lead">Un panel para administrar la asistencia, los turnos y las incidencias de toda tu operación.</p>
+          </div>
+
           <div class="features">
-            <div><mat-icon>verified_user</mat-icon> Multi-empresa y seguro por diseño</div>
-            <div><mat-icon>my_location</mat-icon> Geocercas y validación GPS</div>
-            <div><mat-icon>insights</mat-icon> Dashboards y reportes exportables</div>
+            @for (f of features; track f.title) {
+              <div class="feature">
+                <div class="feature-icon"><mat-icon>{{ f.icon }}</mat-icon></div>
+                <div>
+                  <p class="feature-title">{{ f.title }}</p>
+                  <p class="feature-text">{{ f.text }}</p>
+                </div>
+              </div>
+            }
           </div>
         </div>
+
         <div class="foot">© Nexus Soft — Plataforma de asistencia empresarial</div>
+
+        <svg class="hero-art" viewBox="0 0 400 400" aria-hidden="true">
+          <circle cx="210" cy="210" r="160" stroke="#3949ab" stroke-opacity="0.12" stroke-width="1.5" fill="none" />
+          <circle cx="210" cy="210" r="120" stroke="#3949ab" stroke-opacity="0.18" stroke-width="1.5" fill="none" />
+          <line x1="210" y1="210" x2="90" y2="130" stroke="#3949ab" stroke-opacity="0.16" stroke-width="1" />
+          <line x1="210" y1="210" x2="360" y2="150" stroke="#3949ab" stroke-opacity="0.16" stroke-width="1" />
+          <line x1="210" y1="210" x2="120" y2="340" stroke="#3949ab" stroke-opacity="0.16" stroke-width="1" />
+          <line x1="210" y1="210" x2="210" y2="90" stroke="#3949ab" stroke-opacity="0.4" stroke-width="3" stroke-linecap="round" />
+          <line x1="210" y1="210" x2="270" y2="240" stroke="#3949ab" stroke-opacity="0.6" stroke-width="3" stroke-linecap="round" />
+          <circle cx="210" cy="210" r="5" fill="#3949ab" />
+          <circle cx="90" cy="130" r="5" fill="#3949ab" fill-opacity="0.6" />
+          <circle cx="360" cy="150" r="4" fill="#3949ab" fill-opacity="0.45" />
+          <circle cx="120" cy="340" r="4" fill="#3949ab" fill-opacity="0.45" />
+          <circle cx="330" cy="330" r="3" fill="#3949ab" fill-opacity="0.3" />
+        </svg>
       </div>
 
       <div class="panel">
         <div class="card">
           @if (loading()) { <mat-progress-bar mode="indeterminate" style="margin-bottom:16px" /> }
-          <h2>Iniciar sesión</h2>
-          <p class="sub">Ingresá con tus credenciales corporativas.</p>
+
+          <div class="avatar"><mat-icon>person</mat-icon></div>
+          <h2>Bienvenido de regreso</h2>
+          <p class="sub">Inicia sesión para continuar</p>
+
           <form [formGroup]="form" (ngSubmit)="submit()">
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Correo</mat-label>
+              <mat-label>Correo electrónico</mat-label>
               <input matInput type="email" formControlName="email" autocomplete="username" />
-              <mat-icon matSuffix>mail</mat-icon>
+              <mat-icon matPrefix style="margin-right:8px">mail</mat-icon>
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Contraseña</mat-label>
-              <input matInput type="password" formControlName="password" autocomplete="current-password" />
-              <mat-icon matSuffix>lock</mat-icon>
+              <input matInput [type]="showPassword() ? 'text' : 'password'" formControlName="password" autocomplete="current-password" />
+              <mat-icon matPrefix style="margin-right:8px">lock</mat-icon>
+              <button
+                mat-icon-button
+                matSuffix
+                type="button"
+                (click)="showPassword.set(!showPassword())"
+                [attr.aria-label]="showPassword() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+              >
+                <mat-icon>{{ showPassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Empresa (opcional)</mat-label>
-              <input matInput formControlName="companyCode" />
-              <mat-icon matSuffix>business</mat-icon>
+              <mat-label>Código de empresa (opcional)</mat-label>
+              <input matInput formControlName="companyCode" placeholder="Ej. ACME" />
+              <mat-icon matPrefix style="margin-right:8px">business</mat-icon>
+              <mat-icon matSuffix matTooltip="Solo necesario si tu correo pertenece a más de una empresa">info</mat-icon>
             </mat-form-field>
 
             @if (error()) { <p class="error-text">{{ error() }}</p> }
 
             <button mat-flat-button color="primary" type="submit" class="full-width"
-                    [disabled]="form.invalid || loading()" style="height:44px">
-              Entrar
+                    [disabled]="form.invalid || loading()" style="height:46px">
+              <mat-icon>login</mat-icon> Iniciar sesión
             </button>
           </form>
+
+          <div class="secure-note"><mat-icon>lock</mat-icon> Conexión segura</div>
         </div>
       </div>
     </div>
@@ -144,8 +237,10 @@ export class LoginComponent {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
 
+  protected readonly features = FEATURES;
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly showPassword = signal(false);
 
   protected readonly form = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
