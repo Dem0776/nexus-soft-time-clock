@@ -8,7 +8,7 @@ import java.util.UUID;
 /** Administración de usuarios dentro de un tenant (RF-06, RF-22). */
 public interface UserManagementUseCase {
 
-    UserView create(UUID tenantId, UserCommands.CreateUserCommand command);
+    UserView create(UUID tenantId, GranterAuthority granter, UserCommands.CreateUserCommand command);
 
     UserView get(UUID tenantId, UUID userId);
 
@@ -16,5 +16,5 @@ public interface UserManagementUseCase {
 
     UserView updateStatus(UUID tenantId, UUID userId, String status);
 
-    UserView assignRoles(UUID tenantId, UUID userId, Set<String> roleCodes);
+    UserView assignRoles(UUID tenantId, GranterAuthority granter, UUID userId, Set<String> roleCodes);
 }

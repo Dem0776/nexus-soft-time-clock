@@ -17,7 +17,7 @@ import { EmptyStateComponent } from '../../../core/ui/empty-state.component';
 import { NotificationService } from '../../../core/ui/notification.service';
 import { PageHeaderComponent } from '../../../core/ui/page-header.component';
 import { StatusChipComponent } from '../../../core/ui/status-chip.component';
-import { Role } from '../roles/role.models';
+import { ROLE_RANK, Role, rankOf } from '../roles/role.models';
 import { RoleService } from '../roles/role.service';
 import { AssignRolesDialogComponent } from './assign-roles-dialog.component';
 import { USER_STATUSES, User, UserStatus } from './user.models';
@@ -177,16 +177,17 @@ export class UsersComponent {
 
   private readonly allRoles = signal<Role[]>([]);
   /**
-   * Roles que el operador puede otorgar: todos si es SUPER_ADMIN (platformAdmin),
-   * o solo los que él mismo posee — así no asigna un privilegio mayor al propio (HU-21 CA1).
+   * Roles que el operador puede otorgar (espejo de RoleGrantPolicy en el backend, HU-21 CA1):
+   * todos si es SUPER_ADMIN (platformAdmin), o solo los de rango estrictamente inferior al suyo —
+   * así no delega un privilegio mayor o igual al propio. El backend lo impone realmente.
    */
   protected readonly assignableRoles = computed<Role[]>(() => {
     const user = this.store.user();
     if (user?.platformAdmin) {
       return this.allRoles();
     }
-    const own = new Set(user?.roles ?? []);
-    return this.allRoles().filter((r) => own.has(r.code));
+    const callerMax = Math.max(0, ...(user?.roles ?? []).map((c) => ROLE_RANK[c] ?? 0));
+    return this.allRoles().filter((r) => rankOf(r.code) < callerMax);
   });
 
   protected readonly searchControl = this.fb.nonNullable.control('');

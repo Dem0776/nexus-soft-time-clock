@@ -1,6 +1,8 @@
 package com.condor.nexussoft.timeclock.identity.application;
 
 import com.condor.nexussoft.timeclock.identity.domain.model.Email;
+import com.condor.nexussoft.timeclock.identity.domain.model.RoleGrantPolicy;
+import com.condor.nexussoft.timeclock.identity.domain.port.in.GranterAuthority;
 import com.condor.nexussoft.timeclock.identity.domain.port.in.UserCommands;
 import com.condor.nexussoft.timeclock.identity.domain.port.in.UserManagementUseCase;
 import com.condor.nexussoft.timeclock.identity.domain.port.in.UserView;
@@ -28,13 +30,14 @@ public class UserManagementService implements UserManagementUseCase {
 
     @Override
     @Transactional
-    public UserView create(UUID tenantId, UserCommands.CreateUserCommand command) {
+    public UserView create(UUID tenantId, GranterAuthority granter, UserCommands.CreateUserCommand command) {
         String email = Email.of(command.email()).value();
         if (users.existsByTenantAndEmail(tenantId, email)) {
             throw new DomainException("DUPLICATE_EMAIL", "Ya existe un usuario con el correo " + email);
         }
-        String passwordHash = passwordHasher.hash(command.password());
         Set<String> roles = command.roleCodes() == null ? Set.of() : command.roleCodes();
+        RoleGrantPolicy.assertCanGrant(granter.platformAdmin(), granter.roleCodes(), roles);
+        String passwordHash = passwordHasher.hash(command.password());
         return users.create(tenantId, email, passwordHash, command.firstName(),
                 command.lastName(), command.employeeCode(), roles);
     }
@@ -61,7 +64,8 @@ public class UserManagementService implements UserManagementUseCase {
 
     @Override
     @Transactional
-    public UserView assignRoles(UUID tenantId, UUID userId, Set<String> roleCodes) {
+    public UserView assignRoles(UUID tenantId, GranterAuthority granter, UUID userId, Set<String> roleCodes) {
+        RoleGrantPolicy.assertCanGrant(granter.platformAdmin(), granter.roleCodes(), roleCodes);
         return users.assignRoles(userId, tenantId, roleCodes)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario", userId));
     }

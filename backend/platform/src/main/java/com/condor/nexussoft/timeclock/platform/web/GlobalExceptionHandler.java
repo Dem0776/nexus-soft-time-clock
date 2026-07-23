@@ -1,5 +1,6 @@
 package com.condor.nexussoft.timeclock.platform.web;
 
+import com.condor.nexussoft.timeclock.shared.domain.AuthorizationException;
 import com.condor.nexussoft.timeclock.shared.domain.DomainException;
 import com.condor.nexussoft.timeclock.shared.domain.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,6 +25,17 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
         pd.setTitle("Recurso no encontrado");
+        pd.setProperty("code", ex.getCode());
+        pd.setProperty("timestamp", Instant.now());
+        pd.setProperty("path", request.getRequestURI());
+        return pd;
+    }
+
+    @ExceptionHandler(AuthorizationException.class)
+    public ProblemDetail handleAuthorization(AuthorizationException ex, HttpServletRequest request) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+        pd.setTitle("Acción no autorizada");
+        pd.setType(URI.create("urn:nexus:error:" + ex.getCode().toLowerCase()));
         pd.setProperty("code", ex.getCode());
         pd.setProperty("timestamp", Instant.now());
         pd.setProperty("path", request.getRequestURI());
