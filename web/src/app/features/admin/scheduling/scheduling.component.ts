@@ -221,7 +221,7 @@ import { SchedulingService } from './scheduling.service';
               <button mat-flat-button color="primary" type="submit" [disabled]="assignForm.invalid">Asignar</button>
             </form>
 
-            <form (ngSubmit)="loadAssignments()" style="display:flex;gap:8px;align-items:baseline;margin-top:12px">
+            <div style="display:flex;gap:8px;align-items:baseline;margin-top:12px">
               <mat-form-field appearance="outline" style="width:280px">
                 <mat-label>Listar asignaciones por usuario</mat-label>
                 <mat-select [formControl]="lookupUserId">
@@ -232,8 +232,8 @@ import { SchedulingService } from './scheduling.service';
                   }
                 </mat-select>
               </mat-form-field>
-              <button mat-stroked-button type="submit">Buscar</button>
-            </form>
+              <button mat-stroked-button type="button" (click)="loadAssignments()">Buscar</button>
+            </div>
 
             <table mat-table [dataSource]="assignments()" style="width:100%;margin-top:12px">
               <ng-container matColumnDef="shiftId">
