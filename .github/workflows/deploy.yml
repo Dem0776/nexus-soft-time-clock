@@ -69,8 +69,14 @@ jobs:
           HTTP_PORT: ${{ vars.HTTP_PORT }}
         run: |
           set -euo pipefail
-          FLAGS=""
-          if [ "${{ inputs.pull_image }}" = "true" ]; then FLAGS="$FLAGS --pull-image"; fi
+          # En push automático no hay "inputs" (solo existen en workflow_dispatch): por
+          # defecto forzamos reconstrucción, porque sin --pull-image Portainer recrea los
+          # contenedores reutilizando la imagen ya construida y el código nuevo no llega
+          # a producción aunque el job reporte éxito.
+          FLAGS="--pull-image"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.pull_image }}" = "false" ]; then
+            FLAGS=""
+          fi
           if [ "${{ inputs.verify }}" = "false" ]; then FLAGS="$FLAGS --no-verify"; fi
           echo "Ejecutando: scripts/redeploy.sh$FLAGS"
           bash scripts/redeploy.sh $FLAGS
