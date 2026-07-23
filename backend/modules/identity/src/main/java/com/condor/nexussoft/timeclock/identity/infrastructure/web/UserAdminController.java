@@ -10,6 +10,8 @@ import com.condor.nexussoft.timeclock.shared.domain.Paged;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -28,8 +30,8 @@ public class UserAdminController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public UserResponse create(@Valid @RequestBody CreateUserRequest r) {
-        UserView view = users.create(tenant(), new UserCommands.CreateUserCommand(
+    public UserResponse create(@Valid @RequestBody CreateUserRequest r, @AuthenticationPrincipal Jwt jwt) {
+        UserView view = users.create(tenant(), GranterAuthorities.from(jwt), new UserCommands.CreateUserCommand(
                 r.email(), r.firstName(), r.lastName(), r.employeeCode(), r.password(), r.roleCodes()));
         return UserResponse.from(view);
     }
@@ -55,8 +57,9 @@ public class UserAdminController {
     }
 
     @PutMapping("/{id}/roles")
-    public UserResponse assignRoles(@PathVariable UUID id, @Valid @RequestBody AssignRolesRequest r) {
-        return UserResponse.from(users.assignRoles(tenant(), id, r.roleCodes()));
+    public UserResponse assignRoles(@PathVariable UUID id, @Valid @RequestBody AssignRolesRequest r,
+                                    @AuthenticationPrincipal Jwt jwt) {
+        return UserResponse.from(users.assignRoles(tenant(), GranterAuthorities.from(jwt), id, r.roleCodes()));
     }
 
     private UUID tenant() {
