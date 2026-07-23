@@ -118,6 +118,7 @@ public class AttendanceRecordJpaEntity {
     }
 
     public UUID getId() { return id; }
+    public UUID getWorkSiteId() { return workSiteId; }
     public String getEventType() { return eventType; }
     public String getStatus() { return status; }
     public String getRejectionReason() { return rejectionReason; }

@@ -23,6 +23,8 @@ public interface SchedulingUseCase {
 
     Shift updateShift(UUID tenantId, UUID shiftId, SchedulingCommands.ShiftData data);
 
+    Shift getShift(UUID tenantId, UUID shiftId);
+
     List<Shift> listShifts(UUID tenantId, UUID scheduleId);
 
     ShiftAssignment assignShift(UUID tenantId, SchedulingCommands.AssignShiftCommand command);

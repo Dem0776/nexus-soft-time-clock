@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/services/biometric_service.dart';
 import '../application/attendance_controller.dart';
+import '../data/event_type_service.dart';
 import '../domain/qr_token.dart';
 import 'qr_scanner_screen.dart';
 
@@ -34,11 +36,21 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       return;
     }
 
-    // 3) Registrar (GPS → cola local → sincronización) con el token crudo.
+    // 3) Autenticación biométrica local (HU-14). Es oportunista: el backend rechaza si el
+    //    centro la exige y no fue exitosa. Si el dispositivo no la soporta, devuelve false.
+    final biometricOk = await ref
+        .read(biometricServiceProvider)
+        .authenticate('Confirma tu identidad para registrar tu asistencia');
+    if (!mounted) {
+      return;
+    }
+
+    // 4) Registrar (GPS → cola local → sincronización) con el token crudo.
     await ref.read(attendanceControllerProvider.notifier).register(
           eventType: eventType,
           workSiteId: workSiteId,
           qrToken: raw,
+          biometricVerified: biometricOk,
         );
     final message = ref.read(attendanceControllerProvider).message;
     if (mounted && message != null) {
@@ -118,12 +130,57 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                   ),
                 ],
               ),
+              _IntermediateEvents(busy: state.busy, onRegister: _register),
               const SizedBox(height: 24),
               _PendingStatus(count: state.pendingCount, theme: theme, scheme: scheme),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Botones dinámicos de eventos intermedios (descanso, cambio de sitio) según los tipos
+/// habilitados por la empresa (HU-12 CA1). Si no hay ninguno o la consulta falla, no muestra nada.
+class _IntermediateEvents extends ConsumerWidget {
+  const _IntermediateEvents({required this.busy, required this.onRegister});
+
+  final bool busy;
+  final Future<void> Function(String eventType) onRegister;
+
+  IconData _iconFor(String eventType) => switch (eventType) {
+        'INICIO_DESCANSO' => Icons.free_breakfast_outlined,
+        'FIN_DESCANSO' => Icons.work_history_outlined,
+        'CAMBIO_SITIO' => Icons.place_outlined,
+        _ => Icons.more_horiz,
+      };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final typesAsync = ref.watch(enabledIntermediateEventTypesProvider);
+    return typesAsync.maybeWhen(
+      data: (types) {
+        if (types.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final t in types)
+                OutlinedButton.icon(
+                  onPressed: busy ? null : () => onRegister(t.eventType),
+                  icon: Icon(_iconFor(t.eventType)),
+                  label: Text(t.label),
+                ),
+            ],
+          ),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
     );
   }
 }

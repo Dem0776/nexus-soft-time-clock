@@ -1,6 +1,9 @@
 package com.condor.nexussoft.timeclock.attendance.infrastructure.persistence;
 
+import com.condor.nexussoft.timeclock.attendance.domain.AttendanceEventType;
 import com.condor.nexussoft.timeclock.attendance.domain.AttendanceRecord;
+import com.condor.nexussoft.timeclock.attendance.domain.AttendanceSequenceValidator.LastEvent;
+import com.condor.nexussoft.timeclock.attendance.domain.AttendanceStatus;
 import com.condor.nexussoft.timeclock.attendance.domain.Evidence;
 import com.condor.nexussoft.timeclock.attendance.domain.port.in.AttendanceSummary;
 import com.condor.nexussoft.timeclock.attendance.domain.port.out.AttendanceRepositoryPort;
@@ -8,6 +11,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -33,6 +37,13 @@ public class AttendancePersistenceAdapter implements AttendanceRepositoryPort {
                 r.biometricVerified(),
                 e == null ? null : e.bucket(), e == null ? null : e.key(), e == null ? null : e.hash(),
                 r.validationsJson()));
+    }
+
+    @Override
+    public Optional<LastEvent> findLastAcceptedEvent(UUID tenantId, UUID userId) {
+        return jpa.findFirstByTenantIdAndUserIdAndStatusOrderByServerTimeDesc(
+                        tenantId, userId, AttendanceStatus.ACCEPTED.name())
+                .map(e -> new LastEvent(AttendanceEventType.valueOf(e.getEventType()), e.getWorkSiteId()));
     }
 
     @Override

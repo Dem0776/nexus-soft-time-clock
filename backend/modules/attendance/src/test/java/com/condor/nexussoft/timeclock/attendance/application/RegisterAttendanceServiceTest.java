@@ -1,5 +1,7 @@
 package com.condor.nexussoft.timeclock.attendance.application;
 
+import com.condor.nexussoft.timeclock.attendance.domain.AttendanceEventType;
+import com.condor.nexussoft.timeclock.attendance.domain.AttendanceSequenceValidator.LastEvent;
 import com.condor.nexussoft.timeclock.attendance.domain.port.in.AttendanceResult;
 import com.condor.nexussoft.timeclock.attendance.domain.port.in.RegisterAttendanceCommand;
 import com.condor.nexussoft.timeclock.attendance.domain.port.out.*;
@@ -29,6 +31,9 @@ class RegisterAttendanceServiceTest {
     @Mock QrValidationPort qrValidation;
     @Mock GeofenceCheckPort geofenceCheck;
     @Mock FraudCheckPort fraudCheck;
+    @Mock WorkSitePolicyPort sitePolicy;
+    @Mock SchedulePolicyPort schedulePolicy;
+    @Mock EventTypeConfigPort eventTypeConfig;
     @Mock AttendanceEventPublisherPort events;
 
     RegisterAttendanceService service;
@@ -41,13 +46,46 @@ class RegisterAttendanceServiceTest {
     @BeforeEach
     void setUp() {
         service = new RegisterAttendanceService(attendance, idempotency, nonceGuard, qrValidation,
-                geofenceCheck, fraudCheck, events, clock);
+                geofenceCheck, fraudCheck, sitePolicy, schedulePolicy, eventTypeConfig, events, clock);
+    }
+
+    /** Sin overrides de tipos de evento → todos los intermedios habilitados. */
+    private void allEventTypesEnabledStub() {
+        when(eventTypeConfig.findByTenant(tenantId)).thenReturn(java.util.Map.of());
+    }
+
+    /** Política de centro sin exigencias (foto/biometría opcionales, umbral por default). */
+    private void permissiveSiteStub() {
+        when(sitePolicy.find(tenantId, siteId)).thenReturn(WorkSitePolicyPort.SitePolicy.permissive());
+    }
+
+    /** El colaborador no tiene turno asignado vigente → sin restricción horaria. */
+    private void noScheduleStub() {
+        when(schedulePolicy.check(eq(tenantId), eq(userId), eq(siteId), any()))
+                .thenReturn(SchedulePolicyPort.ScheduleCheck.NO_SCHEDULE);
     }
 
     private RegisterAttendanceCommand cmd() {
+        return cmd("ENTRADA");
+    }
+
+    private RegisterAttendanceCommand cmd(String eventType) {
         return new RegisterAttendanceCommand(UUID.randomUUID(), siteId, "qr", 19.4326, -99.1332, 10.0,
-                "ENTRADA", "dev-1", null, "ONLINE", false, false, false, false, true, false,
+                eventType, "dev-1", null, "ONLINE", false, false, false, false, true, false,
                 null, null, null);
+    }
+
+    /** Deja pasar QR + antifraude + geocerca para llegar a la validación de secuencia. */
+    private void validationsUpToSequenceStubs() {
+        when(idempotency.find(eq(tenantId), any())).thenReturn(Optional.empty());
+        when(qrValidation.verify("qr"))
+                .thenReturn(new QrValidationPort.QrCheck(true, false, tenantId, siteId, "nonce-1"));
+        when(fraudCheck.evaluate(anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean()))
+                .thenReturn(new FraudCheckPort.FraudCheckResult(List.of(), false, null));
+        when(geofenceCheck.check(eq(tenantId), eq(siteId), anyDouble(), anyDouble()))
+                .thenReturn(new GeofenceCheckPort.GeofenceCheck(true, true, 12.0, 50.0));
+        permissiveSiteStub();
+        noScheduleStub();
     }
 
     private void happyPathStubs() {
@@ -59,6 +97,8 @@ class RegisterAttendanceServiceTest {
         when(geofenceCheck.check(eq(tenantId), eq(siteId), anyDouble(), anyDouble()))
                 .thenReturn(new GeofenceCheckPort.GeofenceCheck(true, true, 12.0, 50.0));
         when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), any())).thenReturn(true);
+        permissiveSiteStub();
+        noScheduleStub();
     }
 
     @Test
@@ -84,6 +124,7 @@ class RegisterAttendanceServiceTest {
                 .thenReturn(new FraudCheckPort.FraudCheckResult(List.of(), false, null));
         when(geofenceCheck.check(eq(tenantId), eq(siteId), anyDouble(), anyDouble()))
                 .thenReturn(new GeofenceCheckPort.GeofenceCheck(true, false, 350.0, 50.0));  // fuera del radio
+        permissiveSiteStub();
 
         AttendanceResult result = service.register(tenantId, userId, cmd());
 
@@ -116,6 +157,8 @@ class RegisterAttendanceServiceTest {
         when(geofenceCheck.check(eq(tenantId), eq(siteId), anyDouble(), anyDouble()))
                 .thenReturn(new GeofenceCheckPort.GeofenceCheck(true, true, 12.0, 50.0));
         when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), any())).thenReturn(false);
+        permissiveSiteStub();
+        noScheduleStub();
 
         AttendanceResult result = service.register(tenantId, userId, cmd());
 
@@ -132,11 +175,135 @@ class RegisterAttendanceServiceTest {
                 .thenReturn(new FraudCheckPort.FraudCheckResult(List.of("MOCK_LOCATION"), true, "FRAUD_MOCK_LOCATION"));
         when(geofenceCheck.check(eq(tenantId), eq(siteId), anyDouble(), anyDouble()))
                 .thenReturn(new GeofenceCheckPort.GeofenceCheck(true, true, 12.0, 50.0));
+        permissiveSiteStub();
 
         AttendanceResult result = service.register(tenantId, userId, cmd());
 
         assertThat(result.status()).isEqualTo("REJECTED");
         assertThat(result.rejectionReason()).isEqualTo("FRAUD_MOCK_LOCATION");
         assertThat(result.flags()).contains("MOCK_LOCATION");
+    }
+
+    @Test
+    void salida_sinEntradaAbierta_esRechazadaPorSecuencia() {
+        validationsUpToSequenceStubs();
+        when(attendance.findLastAcceptedEvent(tenantId, userId)).thenReturn(Optional.empty());
+
+        AttendanceResult result = service.register(tenantId, userId, cmd("SALIDA"));
+
+        assertThat(result.status()).isEqualTo("REJECTED");
+        assertThat(result.rejectionReason()).isEqualTo("INVALID_SEQUENCE");
+        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any());
+    }
+
+    @Test
+    void salida_conEntradaAbierta_mismoCentro_esAceptada() {
+        validationsUpToSequenceStubs();
+        when(attendance.findLastAcceptedEvent(tenantId, userId))
+                .thenReturn(Optional.of(new LastEvent(AttendanceEventType.ENTRADA, siteId)));
+        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), any())).thenReturn(true);
+
+        AttendanceResult result = service.register(tenantId, userId, cmd("SALIDA"));
+
+        assertThat(result.status()).isEqualTo("ACCEPTED");
+        assertThat(result.rejectionReason()).isNull();
+    }
+
+    @Test
+    void dobleInicioDescanso_esRechazadoPorSecuencia() {
+        validationsUpToSequenceStubs();
+        allEventTypesEnabledStub();
+        when(attendance.findLastAcceptedEvent(tenantId, userId))
+                .thenReturn(Optional.of(new LastEvent(AttendanceEventType.INICIO_DESCANSO, siteId)));
+
+        AttendanceResult result = service.register(tenantId, userId, cmd("INICIO_DESCANSO"));
+
+        assertThat(result.status()).isEqualTo("REJECTED");
+        assertThat(result.rejectionReason()).isEqualTo("INVALID_SEQUENCE");
+    }
+
+    /** Como validationsUpToSequenceStubs pero permite fijar la política del centro. */
+    private void baseStubsWithPolicy(WorkSitePolicyPort.SitePolicy policy) {
+        when(idempotency.find(eq(tenantId), any())).thenReturn(Optional.empty());
+        when(qrValidation.verify("qr"))
+                .thenReturn(new QrValidationPort.QrCheck(true, false, tenantId, siteId, "nonce-1"));
+        when(fraudCheck.evaluate(anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean()))
+                .thenReturn(new FraudCheckPort.FraudCheckResult(List.of(), false, null));
+        when(geofenceCheck.check(eq(tenantId), eq(siteId), anyDouble(), anyDouble()))
+                .thenReturn(new GeofenceCheckPort.GeofenceCheck(true, true, 12.0, 50.0));
+        when(sitePolicy.find(tenantId, siteId)).thenReturn(policy);
+    }
+
+    @Test
+    void umbralDePrecisionPorCentro_masEstricto_rechazaLOW_GPS_ACCURACY() {
+        // precisión del dispositivo 10 m: pasa el default (50) pero no el umbral por-centro (5).
+        baseStubsWithPolicy(new WorkSitePolicyPort.SitePolicy(5, false, false));
+
+        AttendanceResult result = service.register(tenantId, userId, cmd("ENTRADA"));
+
+        assertThat(result.status()).isEqualTo("REJECTED");
+        assertThat(result.rejectionReason()).isEqualTo("LOW_GPS_ACCURACY");
+        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any());
+    }
+
+    @Test
+    void fotoObligatoria_sinEvidencia_esRechazada() {
+        baseStubsWithPolicy(new WorkSitePolicyPort.SitePolicy(null, true, false));
+        noScheduleStub();
+        when(attendance.findLastAcceptedEvent(tenantId, userId)).thenReturn(Optional.empty());
+
+        AttendanceResult result = service.register(tenantId, userId, cmd("ENTRADA"));  // sin evidenceKey
+
+        assertThat(result.status()).isEqualTo("REJECTED");
+        assertThat(result.rejectionReason()).isEqualTo("PHOTO_REQUIRED");
+        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any());
+    }
+
+    @Test
+    void biometriaObligatoria_sinVerificacion_esRechazada() {
+        baseStubsWithPolicy(new WorkSitePolicyPort.SitePolicy(null, false, true));
+        noScheduleStub();
+        when(attendance.findLastAcceptedEvent(tenantId, userId)).thenReturn(Optional.empty());
+
+        AttendanceResult result = service.register(tenantId, userId, cmd("ENTRADA"));  // biometricVerified=false
+
+        assertThat(result.status()).isEqualTo("REJECTED");
+        assertThat(result.rejectionReason()).isEqualTo("BIOMETRIC_REQUIRED");
+    }
+
+    @Test
+    void tipoDeEventoDeshabilitado_esRechazado() {
+        when(idempotency.find(eq(tenantId), any())).thenReturn(Optional.empty());
+        when(qrValidation.verify("qr"))
+                .thenReturn(new QrValidationPort.QrCheck(true, false, tenantId, siteId, "nonce-1"));
+        when(fraudCheck.evaluate(anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean()))
+                .thenReturn(new FraudCheckPort.FraudCheckResult(List.of(), false, null));
+        when(geofenceCheck.check(eq(tenantId), eq(siteId), anyDouble(), anyDouble()))
+                .thenReturn(new GeofenceCheckPort.GeofenceCheck(true, true, 12.0, 50.0));
+        permissiveSiteStub();
+        // La empresa deshabilitó CAMBIO_SITIO.
+        when(eventTypeConfig.findByTenant(tenantId)).thenReturn(java.util.Map.of(
+                AttendanceEventType.CAMBIO_SITIO,
+                new com.condor.nexussoft.timeclock.attendance.domain.EventTypeSetting(
+                        AttendanceEventType.CAMBIO_SITIO, false, "Cambio de sitio")));
+
+        AttendanceResult result = service.register(tenantId, userId, cmd("CAMBIO_SITIO"));
+
+        assertThat(result.status()).isEqualTo("REJECTED");
+        assertThat(result.rejectionReason()).isEqualTo("EVENT_TYPE_DISABLED");
+        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any());
+    }
+
+    @Test
+    void fueraDeVentanaDeTurno_esRechazada() {
+        baseStubsWithPolicy(WorkSitePolicyPort.SitePolicy.permissive());
+        when(schedulePolicy.check(eq(tenantId), eq(userId), eq(siteId), any()))
+                .thenReturn(SchedulePolicyPort.ScheduleCheck.OUT_OF_WINDOW);
+
+        AttendanceResult result = service.register(tenantId, userId, cmd("ENTRADA"));
+
+        assertThat(result.status()).isEqualTo("REJECTED");
+        assertThat(result.rejectionReason()).isEqualTo("OUT_OF_SCHEDULE");
+        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any());
     }
 }

@@ -83,6 +83,13 @@ public class SchedulingService implements SchedulingUseCase {
 
     @Override
     @Transactional(readOnly = true)
+    public Shift getShift(UUID tenantId, UUID shiftId) {
+        return shifts.findByIdAndTenant(shiftId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Turno", shiftId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Shift> listShifts(UUID tenantId, UUID scheduleId) {
         requireSchedule(tenantId, scheduleId);
         return shifts.findByScheduleAndTenant(scheduleId, tenantId);

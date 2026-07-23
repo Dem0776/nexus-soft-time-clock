@@ -38,6 +38,7 @@ class AttendanceController extends Notifier<AttendanceUiState> {
     required String eventType,
     required String workSiteId,
     required String qrToken,
+    bool biometricVerified = false,
   }) async {
     state = state.copyWith(busy: true, message: null);
 
@@ -60,6 +61,7 @@ class AttendanceController extends Notifier<AttendanceUiState> {
       deviceTimeEpochMs: DateTime.now().millisecondsSinceEpoch,
       mockLocation: position.isMocked,
       gpsDisabled: !gpsEnabled,
+      biometricVerified: biometricVerified,
     );
 
     final db = ref.read(appDatabaseProvider);

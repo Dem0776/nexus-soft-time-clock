@@ -198,6 +198,10 @@ import { ThemeService } from '../core/theme/theme.service';
                   <mat-icon matListItemIcon>event</mat-icon>
                   <span matListItemTitle>Horarios y turnos</span>
                 </a>
+                <a mat-list-item class="nav-item" routerLink="/event-types" routerLinkActive="active">
+                  <mat-icon matListItemIcon>tune</mat-icon>
+                  <span matListItemTitle>Tipos de evento</span>
+                </a>
               }
             }
           </mat-nav-list>

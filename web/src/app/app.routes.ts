@@ -91,6 +91,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/scheduling/scheduling.component').then((m) => m.SchedulingComponent),
       },
+      {
+        path: 'event-types',
+        canActivate: [requirePermission('schedule:manage')],
+        loadComponent: () =>
+          import('./features/admin/event-types/event-types.component').then((m) => m.EventTypesComponent),
+      },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
     ],
   },
