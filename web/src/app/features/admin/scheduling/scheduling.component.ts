@@ -13,6 +13,10 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { NotificationService } from '../../../core/ui/notification.service';
 import { PageHeaderComponent } from '../../../core/ui/page-header.component';
 import { StatusChipComponent } from '../../../core/ui/status-chip.component';
+import { User } from '../users/user.models';
+import { UserService } from '../users/user.service';
+import { WorkSite } from '../work-sites/work-site.models';
+import { WorkSiteService } from '../work-sites/work-site.service';
 import { SCHEDULE_STATUSES, Assignment, Schedule, Shift } from './scheduling.models';
 import { SchedulingService } from './scheduling.service';
 
@@ -170,17 +174,41 @@ import { SchedulingService } from './scheduling.service';
         <mat-card style="margin-top:16px">
           <mat-card-content>
             <form [formGroup]="assignForm" (ngSubmit)="assign()" style="display:flex;gap:8px;flex-wrap:wrap;align-items:baseline">
-              <mat-form-field appearance="outline" style="width:280px">
-                <mat-label>ID de usuario</mat-label>
-                <input matInput formControlName="userId" />
+              <mat-form-field appearance="outline" style="width:240px">
+                <mat-label>Usuario</mat-label>
+                <mat-select formControlName="userId">
+                  @for (u of users(); track u.id) {
+                    <mat-option [value]="u.id">
+                      {{ u.firstName }} {{ u.lastName }}@if (u.employeeCode) { ({{ u.employeeCode }}) }
+                    </mat-option>
+                  }
+                </mat-select>
               </mat-form-field>
-              <mat-form-field appearance="outline" style="width:280px">
-                <mat-label>ID de turno</mat-label>
-                <input matInput formControlName="shiftId" />
+              <mat-form-field appearance="outline" style="width:200px">
+                <mat-label>Horario</mat-label>
+                <mat-select formControlName="scheduleId"
+                            (selectionChange)="onAssignScheduleChange($event.value)">
+                  @for (s of schedules(); track s.id) {
+                    <mat-option [value]="s.id">{{ s.name }}</mat-option>
+                  }
+                </mat-select>
               </mat-form-field>
-              <mat-form-field appearance="outline" style="width:280px">
-                <mat-label>ID de centro (opcional)</mat-label>
-                <input matInput formControlName="workSiteId" />
+              <mat-form-field appearance="outline" style="width:220px">
+                <mat-label>Turno</mat-label>
+                <mat-select formControlName="shiftId">
+                  @for (s of assignShifts(); track s.id) {
+                    <mat-option [value]="s.id">{{ s.name }} ({{ s.startTime }}–{{ s.endTime }})</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline" style="width:220px">
+                <mat-label>Centro (opcional)</mat-label>
+                <mat-select formControlName="workSiteId">
+                  <mat-option [value]="''">—</mat-option>
+                  @for (w of workSites(); track w.id) {
+                    <mat-option [value]="w.id">{{ w.name }}</mat-option>
+                  }
+                </mat-select>
               </mat-form-field>
               <mat-form-field appearance="outline" style="width:160px">
                 <mat-label>Desde</mat-label>
@@ -196,7 +224,13 @@ import { SchedulingService } from './scheduling.service';
             <form (ngSubmit)="loadAssignments()" style="display:flex;gap:8px;align-items:baseline;margin-top:12px">
               <mat-form-field appearance="outline" style="width:280px">
                 <mat-label>Listar asignaciones por usuario</mat-label>
-                <input matInput [formControl]="lookupUserId" placeholder="ID de usuario" />
+                <mat-select [formControl]="lookupUserId">
+                  @for (u of users(); track u.id) {
+                    <mat-option [value]="u.id">
+                      {{ u.firstName }} {{ u.lastName }}@if (u.employeeCode) { ({{ u.employeeCode }}) }
+                    </mat-option>
+                  }
+                </mat-select>
               </mat-form-field>
               <button mat-stroked-button type="submit">Buscar</button>
             </form>
@@ -226,6 +260,8 @@ import { SchedulingService } from './scheduling.service';
 export class SchedulingComponent {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(SchedulingService);
+  private readonly userService = inject(UserService);
+  private readonly workSiteService = inject(WorkSiteService);
   private readonly notify = inject(NotificationService);
 
   protected readonly scheduleStatuses = SCHEDULE_STATUSES;
@@ -236,6 +272,9 @@ export class SchedulingComponent {
   protected readonly schedules = signal<Schedule[]>([]);
   protected readonly shifts = signal<Shift[]>([]);
   protected readonly assignments = signal<Assignment[]>([]);
+  protected readonly users = signal<User[]>([]);
+  protected readonly workSites = signal<WorkSite[]>([]);
+  protected readonly assignShifts = signal<Shift[]>([]);
   protected readonly selectedSchedule = signal<Schedule | null>(null);
   protected readonly editingScheduleId = signal<string | null>(null);
   protected readonly editingShiftId = signal<string | null>(null);
@@ -258,6 +297,7 @@ export class SchedulingComponent {
 
   protected readonly assignForm = this.fb.nonNullable.group({
     userId: ['', [Validators.required]],
+    scheduleId: [''],
     shiftId: ['', [Validators.required]],
     workSiteId: [''],
     validFrom: ['', [Validators.required]],
@@ -267,7 +307,35 @@ export class SchedulingComponent {
   protected readonly lookupUserId = this.fb.nonNullable.control('');
 
   constructor() {
+    this.assignForm.controls.shiftId.disable();
     this.reloadSchedules();
+    this.reloadLookups();
+  }
+
+  private reloadLookups(): void {
+    this.userService.list(0, 200).subscribe({
+      next: (result) => this.users.set(result.content),
+      error: () => this.error.set('No se pudo cargar la lista de usuarios.'),
+    });
+    this.workSiteService.list(0, 200).subscribe({
+      next: (result) => this.workSites.set(result.content),
+      error: () => this.error.set('No se pudo cargar la lista de centros de trabajo.'),
+    });
+  }
+
+  /** Puebla el desplegable de turnos del formulario de asignación al elegir un horario. */
+  protected onAssignScheduleChange(scheduleId: string): void {
+    this.assignForm.controls.shiftId.reset('');
+    if (!scheduleId) {
+      this.assignShifts.set([]);
+      this.assignForm.controls.shiftId.disable();
+      return;
+    }
+    this.assignForm.controls.shiftId.enable();
+    this.service.listShifts(scheduleId).subscribe({
+      next: (shifts) => this.assignShifts.set(shifts),
+      error: () => this.notify.error('No se pudieron cargar los turnos del horario.'),
+    });
   }
 
   private reloadSchedules(): void {
@@ -386,6 +454,8 @@ export class SchedulingComponent {
         next: () => {
           this.notify.success('Asignación creada.');
           this.assignForm.reset();
+          this.assignShifts.set([]);
+          this.assignForm.controls.shiftId.disable();
         },
         error: () => this.notify.error('No se pudo crear la asignación.'),
       });

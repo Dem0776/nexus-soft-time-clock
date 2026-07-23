@@ -64,11 +64,6 @@ export const routes: Routes = [
         loadComponent: () => import('./features/admin/users/users.component').then((m) => m.UsersComponent),
       },
       {
-        path: 'roles',
-        canActivate: [requirePermission('role:manage')],
-        loadComponent: () => import('./features/admin/roles/roles.component').then((m) => m.RolesComponent),
-      },
-      {
         path: 'work-sites',
         canActivate: [requirePermission('worksite:manage')],
         loadComponent: () =>

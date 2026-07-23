@@ -175,12 +175,6 @@ import { ThemeService } from '../core/theme/theme.service';
                   <span matListItemTitle>Usuarios</span>
                 </a>
               }
-              @if (can('role:manage')) {
-                <a mat-list-item class="nav-item" routerLink="/roles" routerLinkActive="active">
-                  <mat-icon matListItemIcon>badge</mat-icon>
-                  <span matListItemTitle>Roles</span>
-                </a>
-              }
               @if (can('worksite:manage')) {
                 <a mat-list-item class="nav-item" routerLink="/work-sites" routerLinkActive="active">
                   <mat-icon matListItemIcon>place</mat-icon>
@@ -228,7 +222,6 @@ export class MainLayoutComponent {
     () =>
       this.can('company:manage') ||
       this.can('user:manage') ||
-      this.can('role:manage') ||
       this.can('worksite:manage') ||
       this.can('project:manage') ||
       this.can('schedule:manage'),
