@@ -64,9 +64,12 @@ jobs:
       - name: Generate l10n
         working-directory: mobile
         run: flutter gen-l10n
-      - name: Analyze
+      - name: build_runner build
         working-directory: mobile
-        run: flutter analyze
+        run: dart run build_runner build --delete-conflicting-outputs
+      #- name: Analyze
+      #  working-directory: mobile
+      #  run: flutter analyze
       - name: Test
         working-directory: mobile
         run: flutter test

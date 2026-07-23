@@ -4,10 +4,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface AttendanceRecordJpaRepository extends JpaRepository<AttendanceRecordJpaEntity, UUID> {
 
     List<AttendanceRecordJpaEntity> findByTenantIdAndUserIdOrderByServerTimeDesc(
             UUID tenantId, UUID userId, Pageable pageable);
+
+    Optional<AttendanceRecordJpaEntity> findFirstByTenantIdAndUserIdAndStatusOrderByServerTimeDesc(
+            UUID tenantId, UUID userId, String status);
 }

@@ -30,19 +30,27 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
     private final QrValidationPort qrValidation;
     private final GeofenceCheckPort geofenceCheck;
     private final FraudCheckPort fraudCheck;
+    private final WorkSitePolicyPort sitePolicy;
+    private final SchedulePolicyPort schedulePolicy;
+    private final EventTypeConfigPort eventTypeConfig;
     private final AttendanceEventPublisherPort events;
     private final Clock clock;
 
     public RegisterAttendanceService(AttendanceRepositoryPort attendance, IdempotencyStorePort idempotency,
                                      NonceGuardPort nonceGuard, QrValidationPort qrValidation,
                                      GeofenceCheckPort geofenceCheck, FraudCheckPort fraudCheck,
-                                     AttendanceEventPublisherPort events, Clock clock) {
+                                     WorkSitePolicyPort sitePolicy, SchedulePolicyPort schedulePolicy,
+                                     EventTypeConfigPort eventTypeConfig, AttendanceEventPublisherPort events,
+                                     Clock clock) {
         this.attendance = attendance;
         this.idempotency = idempotency;
         this.nonceGuard = nonceGuard;
         this.qrValidation = qrValidation;
         this.geofenceCheck = geofenceCheck;
         this.fraudCheck = fraudCheck;
+        this.sitePolicy = sitePolicy;
+        this.schedulePolicy = schedulePolicy;
+        this.eventTypeConfig = eventTypeConfig;
         this.events = events;
         this.clock = clock;
     }
@@ -58,6 +66,7 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
 
         Instant now = clock.instant();              // hora de servidor autoritativa (RN-11)
         UUID recordId = UUID.randomUUID();
+        AttendanceEventType eventType = AttendanceEventType.valueOf(cmd.eventType());
         List<String> flags = new ArrayList<>();
         RejectionReason reason = null;
 
@@ -69,6 +78,13 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
             reason = RejectionReason.INVALID_QR;
         }
 
+        // 1.5) Tipo de evento habilitado para la empresa (HU-12 CA1). Solo se consulta para tipos
+        //       intermedios; ENTRADA/SALIDA son núcleo y siempre están habilitados.
+        if (reason == null && EventTypeCatalog.isConfigurable(eventType)
+                && !EventTypeCatalog.isEnabled(eventType, eventTypeConfig.findByTenant(tenantId))) {
+            reason = RejectionReason.EVENT_TYPE_DISABLED;
+        }
+
         // 2) Antifraude (mock, root, spoofing, GPS) — RN-20..RN-28.
         FraudCheckPort.FraudCheckResult fraud = fraudCheck.evaluate(cmd.mockLocation(),
                 cmd.rootedOrJailbroken(), cmd.gpsSpoofApp(), cmd.gpsDisabled(), cmd.deviceTrusted());
@@ -77,16 +93,41 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
             reason = RejectionReason.valueOf(fraud.blockingReason());
         }
 
-        // 3) Geocerca + precisión GPS (RN-13, RN-14).
+        // 3) Geocerca + precisión GPS (RN-13, RN-14). El umbral de precisión es por-centro (HU-10);
+        //    si el centro no lo define, se usa el default de plataforma que expone la geocerca.
         GeofenceCheckPort.GeofenceCheck geo = geofenceCheck.check(tenantId, cmd.workSiteId(),
                 cmd.latitude(), cmd.longitude());
         Double distance = geo.exists() ? geo.distanceM() : null;
+        WorkSitePolicyPort.SitePolicy policy = sitePolicy.find(tenantId, cmd.workSiteId());
+        double accuracyMax = policy.gpsAccuracyMaxM() != null ? policy.gpsAccuracyMaxM() : geo.accuracyMaxM();
         if (reason == null) {
-            if (cmd.accuracyM() > geo.accuracyMaxM()) {
+            if (cmd.accuracyM() > accuracyMax) {
                 reason = RejectionReason.LOW_GPS_ACCURACY;
             } else if (!geo.exists() || !geo.withinRadius()) {
                 reason = RejectionReason.OUT_OF_GEOFENCE;
             }
+        }
+
+        // 3.4) Ventana de horario del turno asignado (RN-15, HU-10 CA1). Sin turno vigente no restringe.
+        if (reason == null && schedulePolicy.check(tenantId, userId, cmd.workSiteId(), now)
+                == SchedulePolicyPort.ScheduleCheck.OUT_OF_WINDOW) {
+            reason = RejectionReason.OUT_OF_SCHEDULE;
+        }
+
+        // 3.5) Secuencia coherente de la jornada (RN-12): entrada/salida emparejadas en el mismo
+        //       centro (HU-11 CA1), sin dobles descansos ni eventos fuera de orden (HU-12 CA2).
+        if (reason == null) {
+            reason = AttendanceSequenceValidator
+                    .validate(attendance.findLastAcceptedEvent(tenantId, userId), eventType, cmd.workSiteId())
+                    .orElse(null);
+        }
+
+        // 3.6) Políticas obligatorias del centro: evidencia fotográfica (HU-13 CA1) y biometría (HU-14 CA1).
+        if (reason == null && policy.requirePhoto() && cmd.evidenceKey() == null) {
+            reason = RejectionReason.PHOTO_REQUIRED;
+        }
+        if (reason == null && policy.requireBiometric() && !cmd.biometricVerified()) {
+            reason = RejectionReason.BIOMETRIC_REQUIRED;
         }
 
         // 4) Anti-replay: consumir el nonce del QR (RN-26).
