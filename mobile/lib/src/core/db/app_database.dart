@@ -53,7 +53,7 @@ class AppDatabase extends _$AppDatabase {
         .write(PendingAttendanceOpsCompanion(
       status: Value(status),
       lastError: Value(error),
-    ));
+    ),);
   }
 
   Future<void> incrementAttempts(String operationUuid, String error) {
