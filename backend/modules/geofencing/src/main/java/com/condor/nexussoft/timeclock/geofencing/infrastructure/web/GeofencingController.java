@@ -35,8 +35,9 @@ public class GeofencingController {
 
     @PostMapping("/qr")
     @ResponseStatus(HttpStatus.CREATED)
-    public QrResponse generateQr(@PathVariable UUID workSiteId) {
-        return QrResponse.from(geofencing.generateQr(tenant(), workSiteId));
+    public QrResponse generateQr(@PathVariable UUID workSiteId, @Valid @RequestBody(required = false) QrRequest r) {
+        Integer ttlMinutes = r != null ? r.ttlMinutes() : null;
+        return QrResponse.from(geofencing.generateQr(tenant(), workSiteId, ttlMinutes));
     }
 
     private UUID tenant() {

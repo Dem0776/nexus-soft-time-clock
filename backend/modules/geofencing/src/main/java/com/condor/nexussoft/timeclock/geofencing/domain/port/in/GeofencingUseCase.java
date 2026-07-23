@@ -26,7 +26,11 @@ public interface GeofencingUseCase {
      */
     Optional<Geofence> findGeofence(UUID tenantId, UUID workSiteId);
 
-    GeneratedQr generateQr(UUID tenantId, UUID workSiteId);
+    /**
+     * Genera/rota el QR firmado del centro. {@code ttlMinutes} define la vigencia en minutos;
+     * si es {@code null} se aplica la duración por defecto configurada.
+     */
+    GeneratedQr generateQr(UUID tenantId, UUID workSiteId, Integer ttlMinutes);
 
     /** Verifica firma y vigencia del QR; el consumo del nonce (anti-replay) ocurre al registrar (BC-06). */
     QrPayload verifyQr(String token);

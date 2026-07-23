@@ -72,9 +72,16 @@ import { GeofenceService } from './geofence.service';
         <mat-card-header><mat-card-title>QR del centro</mat-card-title></mat-card-header>
         <mat-card-content>
           <p class="muted">El QR es un token firmado con vigencia; generarlo de nuevo rota el anterior.</p>
-          <button mat-flat-button color="primary" (click)="generateQr()" [disabled]="loading()">
-            <mat-icon>qr_code_2</mat-icon> Generar / rotar QR
-          </button>
+          <form [formGroup]="qrForm" (ngSubmit)="generateQr()" style="display:flex;gap:12px;flex-wrap:wrap;align-items:baseline">
+            <mat-form-field appearance="outline" style="width:150px">
+              <mat-label>Vigencia (min)</mat-label>
+              <input matInput type="number" min="1" max="1440" step="1" formControlName="ttlMinutes" />
+              <mat-hint>1 a 1440 minutos</mat-hint>
+            </mat-form-field>
+            <button mat-flat-button color="primary" type="submit" [disabled]="loading() || qrForm.invalid">
+              <mat-icon>qr_code_2</mat-icon> Generar / rotar QR
+            </button>
+          </form>
           @if (qr(); as q) {
             <div style="margin-top:16px;text-align:center">
               @if (qrImage(); as img) {
@@ -112,6 +119,10 @@ export class GeofenceComponent implements AfterViewInit, OnDestroy {
     latitude: this.fb.nonNullable.control(0, [Validators.required]),
     longitude: this.fb.nonNullable.control(0, [Validators.required]),
     radiusM: this.fb.nonNullable.control(100, [Validators.required, Validators.min(1)]),
+  });
+
+  protected readonly qrForm = this.fb.nonNullable.group({
+    ttlMinutes: this.fb.nonNullable.control(2, [Validators.required, Validators.min(1), Validators.max(1440)]),
   });
 
   ngAfterViewInit(): void {
@@ -194,8 +205,11 @@ export class GeofenceComponent implements AfterViewInit, OnDestroy {
   }
 
   protected generateQr(): void {
+    if (this.qrForm.invalid) {
+      return;
+    }
     this.loading.set(true);
-    this.geofence.generateQr(this.workSiteId).subscribe({
+    this.geofence.generateQr(this.workSiteId, this.qrForm.getRawValue()).subscribe({
       next: (token) => {
         this.qr.set(token);
         void toDataURL(token.token, { width: 220 }).then((url) => this.qrImage.set(url));

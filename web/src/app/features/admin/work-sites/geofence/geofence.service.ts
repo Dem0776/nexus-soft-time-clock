@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../../../../environments/environment';
-import { Geofence, GeofenceRequest, QrToken } from './geofence.models';
+import { Geofence, GeofenceRequest, QrRequest, QrToken } from './geofence.models';
 
 /** Geocercas y QR firmado por centro (RF-10, RF-14). Requiere {@code geofence:manage}. */
 @Injectable({ providedIn: 'root' })
@@ -19,7 +19,7 @@ export class GeofenceService {
     return this.http.put<Geofence>(`${this.base}/${workSiteId}/geofence`, request);
   }
 
-  generateQr(workSiteId: string): Observable<QrToken> {
-    return this.http.post<QrToken>(`${this.base}/${workSiteId}/qr`, {});
+  generateQr(workSiteId: string, request?: QrRequest): Observable<QrToken> {
+    return this.http.post<QrToken>(`${this.base}/${workSiteId}/qr`, request ?? {});
   }
 }

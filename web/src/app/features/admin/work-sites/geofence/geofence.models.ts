@@ -12,6 +12,10 @@ export interface GeofenceRequest {
   radiusM: number;
 }
 
+export interface QrRequest {
+  ttlMinutes?: number;
+}
+
 export interface QrToken {
   token: string;
   expiresAt: string;

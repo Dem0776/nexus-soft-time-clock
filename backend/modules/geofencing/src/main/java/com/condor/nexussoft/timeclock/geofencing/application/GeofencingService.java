@@ -70,9 +70,10 @@ public class GeofencingService implements GeofencingUseCase {
 
     @Override
     @Transactional
-    public GeneratedQr generateQr(UUID tenantId, UUID workSiteId) {
+    public GeneratedQr generateQr(UUID tenantId, UUID workSiteId, Integer ttlMinutes) {
+        long ttlSeconds = ttlMinutes != null ? ttlMinutes * 60L : qrTtlSeconds;
         Instant now = clock.instant();
-        Instant expiresAt = now.plusSeconds(qrTtlSeconds);
+        Instant expiresAt = now.plusSeconds(ttlSeconds);
         String nonce = newNonce();
 
         qrTokens.deactivateActiveForSite(workSiteId, tenantId);
