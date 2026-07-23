@@ -1,6 +1,5 @@
 package com.condor.nexussoft.timeclock.identity.infrastructure.web;
 
-import com.condor.nexussoft.timeclock.identity.domain.port.in.GranterAuthority;
 import com.condor.nexussoft.timeclock.identity.domain.port.in.UserCommands;
 import com.condor.nexussoft.timeclock.identity.domain.port.in.UserManagementUseCase;
 import com.condor.nexussoft.timeclock.identity.domain.port.in.UserView;
@@ -15,8 +14,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 /** Administración de usuarios del tenant (RF-06, RF-22). Requiere {@code user:manage}. */
@@ -34,7 +31,7 @@ public class UserAdminController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public UserResponse create(@Valid @RequestBody CreateUserRequest r, @AuthenticationPrincipal Jwt jwt) {
-        UserView view = users.create(tenant(), granter(jwt), new UserCommands.CreateUserCommand(
+        UserView view = users.create(tenant(), GranterAuthorities.from(jwt), new UserCommands.CreateUserCommand(
                 r.email(), r.firstName(), r.lastName(), r.employeeCode(), r.password(), r.roleCodes()));
         return UserResponse.from(view);
     }
@@ -62,17 +59,10 @@ public class UserAdminController {
     @PutMapping("/{id}/roles")
     public UserResponse assignRoles(@PathVariable UUID id, @Valid @RequestBody AssignRolesRequest r,
                                     @AuthenticationPrincipal Jwt jwt) {
-        return UserResponse.from(users.assignRoles(tenant(), granter(jwt), id, r.roleCodes()));
+        return UserResponse.from(users.assignRoles(tenant(), GranterAuthorities.from(jwt), id, r.roleCodes()));
     }
 
     private UUID tenant() {
         return TenantContext.require();
-    }
-
-    /** Deriva la identidad del operador (potestad de delegación de roles) desde el access token. */
-    private GranterAuthority granter(Jwt jwt) {
-        boolean platformAdmin = Boolean.TRUE.equals(jwt.getClaimAsBoolean("platform_admin"));
-        List<String> roles = jwt.getClaimAsStringList("roles");
-        return new GranterAuthority(platformAdmin, roles == null ? Set.of() : Set.copyOf(roles));
     }
 }

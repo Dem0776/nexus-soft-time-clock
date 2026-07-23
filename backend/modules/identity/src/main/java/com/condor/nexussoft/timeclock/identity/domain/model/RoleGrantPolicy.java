@@ -42,12 +42,23 @@ public final class RoleGrantPolicy {
         }
         int callerMax = maxRank(callerRoles);
         for (String role : requestedRoles) {
-            int rank = RANK.getOrDefault(role, Integer.MAX_VALUE);
-            if (rank >= callerMax) {
+            if (rankOf(role) >= callerMax) {
                 throw new AuthorizationException("FORBIDDEN_ROLE_GRANT",
                         "No tiene potestad para otorgar el rol " + role);
             }
         }
+    }
+
+    /**
+     * ¿Puede el operador otorgar este rol? El {@code platform_admin} puede cualquiera; el resto,
+     * solo roles de rango estrictamente inferior al propio. Usado para filtrar el catálogo (RF-22).
+     */
+    public static boolean canGrant(boolean platformAdmin, Set<String> callerRoles, String role) {
+        return platformAdmin || rankOf(role) < maxRank(callerRoles);
+    }
+
+    private static int rankOf(String role) {
+        return RANK.getOrDefault(role, Integer.MAX_VALUE);
     }
 
     private static int maxRank(Set<String> roleCodes) {
