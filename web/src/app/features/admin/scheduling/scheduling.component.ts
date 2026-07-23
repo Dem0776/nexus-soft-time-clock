@@ -1,4 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
+import { forkJoin } from 'rxjs';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -238,11 +239,11 @@ import { SchedulingService } from './scheduling.service';
             <table mat-table [dataSource]="assignments()" style="width:100%;margin-top:12px">
               <ng-container matColumnDef="shiftId">
                 <th mat-header-cell *matHeaderCellDef>Turno</th>
-                <td mat-cell *matCellDef="let a">{{ a.shiftId }}</td>
+                <td mat-cell *matCellDef="let a">{{ shiftLabel(a.shiftId) }}</td>
               </ng-container>
               <ng-container matColumnDef="workSiteId">
                 <th mat-header-cell *matHeaderCellDef>Centro</th>
-                <td mat-cell *matCellDef="let a">{{ a.workSiteId || '—' }}</td>
+                <td mat-cell *matCellDef="let a">{{ workSiteLabel(a.workSiteId) }}</td>
               </ng-container>
               <ng-container matColumnDef="range">
                 <th mat-header-cell *matHeaderCellDef>Vigencia</th>
@@ -275,6 +276,7 @@ export class SchedulingComponent {
   protected readonly users = signal<User[]>([]);
   protected readonly workSites = signal<WorkSite[]>([]);
   protected readonly assignShifts = signal<Shift[]>([]);
+  protected readonly shiftsById = signal<Record<string, Shift>>({});
   protected readonly selectedSchedule = signal<Schedule | null>(null);
   protected readonly editingScheduleId = signal<string | null>(null);
   protected readonly editingShiftId = signal<string | null>(null);
@@ -340,9 +342,44 @@ export class SchedulingComponent {
 
   private reloadSchedules(): void {
     this.service.listSchedules(0, 100).subscribe({
-      next: (result) => this.schedules.set(result.content),
+      next: (result) => {
+        this.schedules.set(result.content);
+        this.reloadShiftIndex(result.content);
+      },
       error: () => this.error.set('No se pudo cargar horarios (¿permiso schedule:manage?).'),
     });
+  }
+
+  /** Construye el índice de turnos por id (de todos los horarios) para resolver nombres en la tabla de asignaciones. */
+  private reloadShiftIndex(schedules: Schedule[]): void {
+    if (!schedules.length) {
+      this.shiftsById.set({});
+      return;
+    }
+    forkJoin(schedules.map((s) => this.service.listShifts(s.id))).subscribe({
+      next: (lists) => {
+        const index: Record<string, Shift> = {};
+        for (const list of lists) {
+          for (const shift of list) {
+            index[shift.id] = shift;
+          }
+        }
+        this.shiftsById.set(index);
+      },
+      error: () => {},
+    });
+  }
+
+  protected shiftLabel(shiftId: string): string {
+    const shift = this.shiftsById()[shiftId];
+    return shift ? `${shift.name} (${shift.startTime.substring(0, 5)}–${shift.endTime.substring(0, 5)})` : shiftId;
+  }
+
+  protected workSiteLabel(workSiteId?: string): string {
+    if (!workSiteId) {
+      return '—';
+    }
+    return this.workSites().find((w) => w.id === workSiteId)?.name ?? workSiteId;
   }
 
   protected saveSchedule(): void {
