@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -36,6 +37,7 @@ import { IncidentService } from './incident.service';
     MatInputModule,
     MatSelectModule,
     MatProgressBarModule,
+    DatePipe,
     PageHeaderComponent,
     StatusChipComponent,
     EmptyStateComponent,
@@ -50,7 +52,7 @@ import { IncidentService } from './incident.service';
             <div class="filter-bar">
               <mat-form-field appearance="outline" class="search">
                 <mat-icon matPrefix>search</mat-icon>
-                <mat-label>Buscar por tipo, motivo o ID</mat-label>
+                <mat-label>Buscar por colaborador, tipo, motivo o ID</mat-label>
                 <input matInput [formControl]="searchControl" autocomplete="off" />
               </mat-form-field>
               <mat-form-field appearance="outline" style="width:200px">
@@ -83,7 +85,11 @@ import { IncidentService } from './incident.service';
                 </ng-container>
                 <ng-container matColumnDef="date">
                   <th mat-header-cell *matHeaderCellDef>Fecha</th>
-                  <td mat-cell *matCellDef="let i">{{ i.incidentDate }}</td>
+                  <td mat-cell *matCellDef="let i">{{ i.createdAt | date: 'yyyy-MM-dd HH:mm:ss' }}</td>
+                </ng-container>
+                <ng-container matColumnDef="user">
+                  <th mat-header-cell *matHeaderCellDef>Colaborador</th>
+                  <td mat-cell *matCellDef="let i">{{ i.userName || i.userId }}</td>
                 </ng-container>
                 <ng-container matColumnDef="type">
                   <th mat-header-cell *matHeaderCellDef>Tipo</th>
@@ -129,14 +135,14 @@ import { IncidentService } from './incident.service';
           <div class="drawer-header">
             <div class="titles">
               <h3>Incidencia · {{ i.type }}</h3>
-              <p class="sub">{{ i.incidentDate }} · Prioridad {{ i.priority }}</p>
+              <p class="sub">{{ i.createdAt | date: 'yyyy-MM-dd HH:mm:ss' }} · Prioridad {{ i.priority }}</p>
             </div>
             <button mat-icon-button (click)="closeDrawer()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
           </div>
           <div class="drawer-body">
             <div class="detail-section-title">Información</div>
             <div class="detail-grid">
-              <div class="detail-row"><span class="k">Usuario</span><span class="v">{{ i.userId }}</span></div>
+              <div class="detail-row"><span class="k">Usuario</span><span class="v">{{ i.userName || i.userId }}</span></div>
               <div class="detail-row"><span class="k">Estado actual</span><span class="v"><app-status-chip [status]="i.status" /></span></div>
               @if (i.relatedAttendanceId) {
                 <div class="detail-row"><span class="k">Fichaje relacionado</span><span class="v">{{ i.relatedAttendanceId }}</span></div>
@@ -190,7 +196,7 @@ export class IncidentsComponent {
   private readonly service = inject(IncidentService);
   private readonly notify = inject(NotificationService);
 
-  protected readonly columns = ['priority', 'date', 'type', 'description', 'status', 'actions'];
+  protected readonly columns = ['priority', 'date', 'user', 'type', 'description', 'status', 'actions'];
   protected readonly resolutions = INCIDENT_RESOLUTIONS;
   protected readonly incidents = signal<Incident[]>([]);
   protected readonly loading = signal(false);
@@ -214,7 +220,7 @@ export class IncidentsComponent {
     return this.incidents().filter((i) => {
       if (priority && i.priority !== priority) return false;
       if (!search) return true;
-      const haystack = `${i.type} ${i.description ?? ''} ${i.id}`.toLowerCase();
+      const haystack = `${i.userName ?? ''} ${i.type} ${i.description ?? ''} ${i.id}`.toLowerCase();
       return haystack.includes(search);
     });
   });

@@ -18,12 +18,12 @@ public final class IncidentDtos {
             @Size(max = 1000) String note) {
     }
 
-    public record IncidentResponse(UUID id, UUID userId, String type, String status, String priority,
-                                   LocalDate incidentDate, UUID relatedAttendanceId, String description,
-                                   String resolutionNote, UUID resolvedBy, Instant resolvedAt) {
-        public static IncidentResponse from(Incident i) {
-            return new IncidentResponse(i.id(), i.userId(), i.type().name(), i.status().name(), i.priority(),
-                    i.incidentDate(), i.relatedAttendanceId(), i.description(),
+    public record IncidentResponse(UUID id, UUID userId, String userName, String type, String status, String priority,
+                                   LocalDate incidentDate, Instant createdAt, UUID relatedAttendanceId,
+                                   String description, String resolutionNote, UUID resolvedBy, Instant resolvedAt) {
+        public static IncidentResponse from(Incident i, String userName) {
+            return new IncidentResponse(i.id(), i.userId(), userName, i.type().name(), i.status().name(), i.priority(),
+                    i.incidentDate(), i.createdAt(), i.relatedAttendanceId(), i.description(),
                     i.resolutionNote(), i.resolvedBy(), i.resolvedAt());
         }
     }

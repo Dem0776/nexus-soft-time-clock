@@ -33,7 +33,7 @@ class IncidentServiceTest {
         UUID resolver = UUID.randomUUID();
         Incident open = new Incident(incidentId, tenantId, UUID.randomUUID(), Incident.Type.REGISTRO_RECHAZADO,
                 Incident.Status.OPEN, "MEDIUM", LocalDate.now(clock), null, "Registro rechazado",
-                null, null, null);
+                null, null, null, Instant.now(clock));
         when(incidents.findByIdAndTenant(incidentId, tenantId)).thenReturn(Optional.of(open));
         when(incidents.update(any())).thenAnswer(inv -> inv.getArgument(0));
 

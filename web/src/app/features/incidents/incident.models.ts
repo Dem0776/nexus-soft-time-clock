@@ -5,10 +5,12 @@ export const INCIDENT_RESOLUTIONS: IncidentResolution[] = ['APPROVED', 'REJECTED
 export interface Incident {
   id: string;
   userId: string;
+  userName?: string;
   type: string;
   status: string;
   priority: string;
   incidentDate: string;
+  createdAt: string;
   relatedAttendanceId?: string;
   description?: string;
   resolutionNote?: string;

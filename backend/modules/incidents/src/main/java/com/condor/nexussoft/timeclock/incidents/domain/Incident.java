@@ -23,10 +23,11 @@ public class Incident {
     private String resolutionNote;
     private UUID resolvedBy;
     private Instant resolvedAt;
+    private final Instant createdAt;
 
     public Incident(UUID id, UUID tenantId, UUID userId, Type type, Status status, String priority,
                     LocalDate incidentDate, UUID relatedAttendanceId, String description,
-                    String resolutionNote, UUID resolvedBy, Instant resolvedAt) {
+                    String resolutionNote, UUID resolvedBy, Instant resolvedAt, Instant createdAt) {
         this.id = id;
         this.tenantId = tenantId;
         this.userId = userId;
@@ -39,12 +40,13 @@ public class Incident {
         this.resolutionNote = resolutionNote;
         this.resolvedBy = resolvedBy;
         this.resolvedAt = resolvedAt;
+        this.createdAt = createdAt;
     }
 
     public static Incident openForRejectedAttendance(UUID tenantId, UUID userId, UUID attendanceId, String reason) {
         return new Incident(UUID.randomUUID(), tenantId, userId, Type.REGISTRO_RECHAZADO, Status.OPEN,
                 "MEDIUM", LocalDate.now(), attendanceId, "Registro rechazado: " + reason,
-                null, null, null);
+                null, null, null, Instant.now());
     }
 
     /** Resuelve la incidencia (aprobar/rechazar/resolver). Debe quedar auditado (RN-43). */
@@ -70,4 +72,5 @@ public class Incident {
     public String resolutionNote() { return resolutionNote; }
     public UUID resolvedBy() { return resolvedBy; }
     public Instant resolvedAt() { return resolvedAt; }
+    public Instant createdAt() { return createdAt; }
 }

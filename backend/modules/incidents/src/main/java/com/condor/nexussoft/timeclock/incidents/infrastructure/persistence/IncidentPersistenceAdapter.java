@@ -52,13 +52,13 @@ public class IncidentPersistenceAdapter implements IncidentRepositoryPort {
     private IncidentJpaEntity toEntity(Incident i) {
         return new IncidentJpaEntity(i.id(), i.tenantId(), i.userId(), i.type().name(), i.status().name(),
                 i.priority(), i.incidentDate(), i.relatedAttendanceId(), i.description(),
-                i.resolutionNote(), i.resolvedBy(), i.resolvedAt());
+                i.resolutionNote(), i.resolvedBy(), i.resolvedAt(), i.createdAt());
     }
 
     private Incident toDomain(IncidentJpaEntity e) {
         return new Incident(e.getId(), e.getTenantId(), e.getUserId(),
                 Incident.Type.valueOf(e.getType()), Incident.Status.valueOf(e.getStatus()), e.getPriority(),
                 e.getIncidentDate(), e.getRelatedAttendanceId(), e.getDescription(),
-                e.getResolutionNote(), e.getResolvedBy(), e.getResolvedAt());
+                e.getResolutionNote(), e.getResolvedBy(), e.getResolvedAt(), e.getCreatedAt());
     }
 }
