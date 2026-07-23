@@ -59,97 +59,114 @@ const NUMERIC_COLUMNS: readonly NumericColumn[] = [
   template: `
     <app-page-header title="Reporte de asistencia" subtitle="Resumen por colaborador con filtros y exportación" />
 
-    <mat-card>
-      <mat-card-content>
-        <!-- Barra superior de acciones -->
-        <div class="toolbar" [formGroup]="form">
-          <mat-form-field appearance="outline" class="search">
-            <mat-icon matPrefix>search</mat-icon>
-            <mat-label>Buscar (nombre, número o centro)</mat-label>
-            <input matInput formControlName="search" autocomplete="off" />
-          </mat-form-field>
+    <div class="split-layout">
+      <div class="split-main">
+        <mat-card>
+          <mat-card-content>
+            <!-- Barra superior de acciones -->
+            <div class="toolbar" [formGroup]="form">
+              <mat-form-field appearance="outline" class="search">
+                <mat-icon matPrefix>search</mat-icon>
+                <mat-label>Buscar (nombre, número o centro)</mat-label>
+                <input matInput formControlName="search" autocomplete="off" />
+              </mat-form-field>
 
-          <div class="dates">
-            <mat-form-field appearance="outline" class="date">
-              <mat-label>Desde</mat-label>
-              <input matInput type="date" formControlName="from" />
-            </mat-form-field>
-            <mat-form-field appearance="outline" class="date">
-              <mat-label>Hasta</mat-label>
-              <input matInput type="date" formControlName="to" />
-            </mat-form-field>
-          </div>
+              <div class="dates">
+                <mat-form-field appearance="outline" class="date">
+                  <mat-label>Desde</mat-label>
+                  <input matInput type="date" formControlName="from" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="date">
+                  <mat-label>Hasta</mat-label>
+                  <input matInput type="date" formControlName="to" />
+                </mat-form-field>
+              </div>
 
-          <span class="spacer"></span>
+              <span class="spacer"></span>
 
-          <div class="toolbar-actions">
-            <button mat-stroked-button type="button" (click)="clearFilters()" [disabled]="activeFilters() === 0">
-              <mat-icon>filter_alt_off</mat-icon> Limpiar filtros
-            </button>
-            <button mat-stroked-button type="button" (click)="export('excel')" [disabled]="filtered().length === 0">
-              <mat-icon>grid_on</mat-icon> Excel
-            </button>
-            <button mat-stroked-button type="button" (click)="export('pdf')" [disabled]="filtered().length === 0">
-              <mat-icon>picture_as_pdf</mat-icon> PDF
-            </button>
-          </div>
-        </div>
+              <div class="toolbar-actions">
+                <button mat-stroked-button type="button" (click)="filtersOpen.set(!filtersOpen())">
+                  <mat-icon>tune</mat-icon> Filtros por columna
+                  @if (activeFilters() > 0) { <span class="filter-badge">{{ activeFilters() }}</span> }
+                </button>
+                <button mat-stroked-button type="button" (click)="export('excel')" [disabled]="filtered().length === 0">
+                  <mat-icon>grid_on</mat-icon> Excel
+                </button>
+                <button mat-stroked-button type="button" (click)="export('pdf')" [disabled]="filtered().length === 0">
+                  <mat-icon>picture_as_pdf</mat-icon> PDF
+                </button>
+              </div>
+            </div>
 
-        <!-- Indicadores -->
-        <div class="indicators">
-          <span class="count">
-            <strong>{{ filtered().length }}</strong>
-            @if (filtered().length !== total()) { <span class="muted">de {{ total() }}</span> }
-            registro{{ filtered().length === 1 ? '' : 's' }}
-          </span>
-          @if (activeFilters() > 0) {
-            <span class="active-filters">
-              <mat-icon>tune</mat-icon> {{ activeFilters() }} filtro{{ activeFilters() === 1 ? '' : 's' }} activo{{ activeFilters() === 1 ? '' : 's' }}
-            </span>
-          }
-          @if (demo()) {
-            <span class="demo-badge" title="Sin conexión al backend: se muestran datos de demostración.">
-              <mat-icon>science</mat-icon> Datos de demostración
-            </span>
-          }
-        </div>
+            <!-- Indicadores -->
+            <div class="indicators">
+              <span class="count">
+                <strong>{{ filtered().length }}</strong>
+                @if (filtered().length !== total()) { <span class="muted">de {{ total() }}</span> }
+                registro{{ filtered().length === 1 ? '' : 's' }}
+              </span>
+              @if (demo()) {
+                <span class="demo-badge" title="Sin conexión al backend: se muestran datos de demostración.">
+                  <mat-icon>science</mat-icon> Datos de demostración
+                </span>
+              }
+            </div>
 
-        <app-report-filters [form]="filtersForm" [activeCount]="activeFilters()" />
+            @if (loading()) { <mat-progress-bar mode="indeterminate" class="loader-bar" /> }
 
-        @if (loading()) { <mat-progress-bar mode="indeterminate" class="loader-bar" /> }
-
-        <!-- Estados: carga (skeleton), error, vacío, o tabla -->
-        @if (loading()) {
-          <div class="skeleton">
-            @for (r of skeletonRows; track r) {
-              <div class="skeleton-row"></div>
+            <!-- Estados: carga (skeleton), error, vacío, o tabla -->
+            @if (loading()) {
+              <div class="skeleton">
+                @for (r of skeletonRows; track r) {
+                  <div class="skeleton-row"></div>
+                }
+              </div>
+            } @else if (error()) {
+              <div class="error-block">
+                <mat-icon>cloud_off</mat-icon>
+                <p>{{ error() }}</p>
+                <button mat-flat-button color="primary" (click)="reload()">
+                  <mat-icon>refresh</mat-icon> Reintentar
+                </button>
+              </div>
+            } @else if (filtered().length === 0) {
+              <app-empty-state
+                icon="search_off"
+                [message]="total() === 0 ? 'No hay datos para el periodo seleccionado.' : 'Ningún colaborador coincide con los filtros aplicados.'"
+              />
+            } @else {
+              <app-report-table [rows]="paged()" [sort]="sort()" (sortChange)="onSort($event)" />
+              <mat-paginator
+                [length]="filtered().length"
+                [pageSize]="pageSize()"
+                [pageIndex]="pageIndex()"
+                [pageSizeOptions]="[25, 50, 100]"
+                (page)="onPage($event)"
+              />
             }
+          </mat-card-content>
+        </mat-card>
+      </div>
+
+      @if (filtersOpen()) {
+        <aside class="split-drawer">
+          <div class="drawer-header">
+            <div class="titles">
+              <h3>Filtros por columna</h3>
+              <p class="sub">{{ activeFilters() }} filtro{{ activeFilters() === 1 ? '' : 's' }} activo{{ activeFilters() === 1 ? '' : 's' }}</p>
+            </div>
+            <button mat-icon-button (click)="filtersOpen.set(false)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
           </div>
-        } @else if (error()) {
-          <div class="error-block">
-            <mat-icon>cloud_off</mat-icon>
-            <p>{{ error() }}</p>
-            <button mat-flat-button color="primary" (click)="reload()">
-              <mat-icon>refresh</mat-icon> Reintentar
-            </button>
+          <div class="drawer-body">
+            <app-report-filters [form]="filtersForm" />
           </div>
-        } @else if (filtered().length === 0) {
-          <app-empty-state
-            icon="search_off"
-            [message]="total() === 0 ? 'No hay datos para el periodo seleccionado.' : 'Ningún colaborador coincide con los filtros aplicados.'"
-          />
-        } @else {
-          <app-report-table [rows]="paged()" [sort]="sort()" (sortChange)="onSort($event)" />
-          <mat-paginator
-            [length]="filtered().length"
-            [pageSize]="pageSize()"
-            [pageIndex]="pageIndex()"
-            [pageSizeOptions]="[25, 50, 100]"
-            (page)="onPage($event)"
-          />
-        }
-      </mat-card-content>
-    </mat-card>
+          <div class="drawer-actions">
+            <button mat-button (click)="clearFilters()" [disabled]="activeFilters() === 0">Restablecer</button>
+            <button mat-flat-button color="primary" (click)="filtersOpen.set(false)">Aplicar filtros</button>
+          </div>
+        </aside>
+      }
+    </div>
   `,
   styles: [
     `
@@ -175,7 +192,7 @@ const NUMERIC_COLUMNS: readonly NumericColumn[] = [
       }
       .count { font-size: 0.9rem; }
       .count strong { font-size: 1.05rem; color: var(--brand); }
-      .active-filters, .demo-badge {
+      .demo-badge {
         display: inline-flex;
         align-items: center;
         gap: 6px;
@@ -183,11 +200,23 @@ const NUMERIC_COLUMNS: readonly NumericColumn[] = [
         font-weight: 600;
         padding: 3px 10px;
         border-radius: 999px;
+        color: var(--warning);
+        background: var(--warning-bg);
       }
-      .active-filters { color: var(--info); background: var(--info-bg); }
-      .demo-badge { color: var(--warning); background: var(--warning-bg); }
-      .active-filters mat-icon, .demo-badge mat-icon {
-        font-size: 16px; width: 16px; height: 16px;
+      .demo-badge mat-icon { font-size: 16px; width: 16px; height: 16px; }
+      .filter-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        margin-left: 6px;
+        border-radius: 999px;
+        background: var(--brand);
+        color: #fff;
+        font-size: 0.7rem;
+        font-weight: 700;
       }
       .loader-bar { margin: var(--sp-2) 0; }
 
@@ -237,6 +266,7 @@ export class ReportsComponent {
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly demo = signal(false);
+  protected readonly filtersOpen = signal(false);
 
   // --- Ordenamiento y paginación (cliente) ---
   protected readonly sort = signal<SortState>({ column: 'employeeName', direction: 'asc' });

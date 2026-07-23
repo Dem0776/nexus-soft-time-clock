@@ -32,8 +32,6 @@ import { WorkSiteService } from './work-site.service';
     ReactiveFormsModule,
     RouterLink,
     MatCardModule,
-    MatTableModule,
-    MatPaginatorModule,
     MatButtonModule,
     MatIconModule,
     MatTooltipModule,
@@ -41,121 +39,137 @@ import { WorkSiteService } from './work-site.service';
     MatInputModule,
     MatCheckboxModule,
     MatProgressBarModule,
+    MatTableModule,
+    MatPaginatorModule,
     MatDialogModule,
     PageHeaderComponent,
     StatusChipComponent,
     EmptyStateComponent,
   ],
   template: `
-    <app-page-header title="Centros de trabajo">
+    <app-page-header title="Centros de trabajo" subtitle="Administra los centros de trabajo de la empresa">
       <button mat-flat-button color="primary" (click)="startCreate()">
         <mat-icon>add_location_alt</mat-icon> Nuevo centro
       </button>
     </app-page-header>
 
-    @if (showForm()) {
-      <mat-card style="margin-bottom:16px">
-        <mat-card-header>
-          <mat-card-title>{{ editingId() ? 'Editar centro' : 'Nuevo centro' }}</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <form [formGroup]="form" (ngSubmit)="save()" style="display:flex;gap:12px;flex-wrap:wrap;align-items:baseline">
-            <mat-form-field appearance="outline">
-              <mat-label>Código</mat-label>
-              <input matInput formControlName="code" />
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Nombre</mat-label>
-              <input matInput formControlName="name" />
-            </mat-form-field>
-            <mat-form-field appearance="outline" style="flex:1 1 260px">
-              <mat-label>Dirección</mat-label>
-              <input matInput formControlName="address" />
-            </mat-form-field>
-            <mat-form-field appearance="outline" style="width:130px">
-              <mat-label>Latitud</mat-label>
-              <input matInput type="number" step="any" formControlName="latitude" readonly />
-            </mat-form-field>
-            <mat-form-field appearance="outline" style="width:130px">
-              <mat-label>Longitud</mat-label>
-              <input matInput type="number" step="any" formControlName="longitude" readonly />
-            </mat-form-field>
-            <button mat-stroked-button type="button" (click)="pickLocation()" style="align-self:center">
-              <mat-icon>place</mat-icon> Seleccionar en el mapa
-            </button>
-            <mat-form-field appearance="outline" style="width:160px">
-              <mat-label>Zona horaria</mat-label>
-              <input matInput formControlName="timezone" placeholder="America/Lima" />
-            </mat-form-field>
-            <mat-form-field appearance="outline" style="width:150px">
-              <mat-label>Precisión GPS máx (m)</mat-label>
-              <input matInput type="number" formControlName="gpsAccuracyMaxM" />
-            </mat-form-field>
-            <mat-checkbox formControlName="requirePhoto">Foto obligatoria</mat-checkbox>
-            <mat-checkbox formControlName="requireBiometric">Biometría obligatoria</mat-checkbox>
-            <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid || loading()">
+    <div class="split-layout">
+      <div class="split-main">
+        <mat-card>
+          <mat-card-content>
+            @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+            @if (error()) { <p class="error-text">{{ error() }}</p> }
+
+            <div class="table-wrap">
+              <table mat-table [dataSource]="sites()" style="width:100%">
+                <ng-container matColumnDef="code">
+                  <th mat-header-cell *matHeaderCellDef>Código</th>
+                  <td mat-cell *matCellDef="let s">{{ s.code }}</td>
+                </ng-container>
+                <ng-container matColumnDef="name">
+                  <th mat-header-cell *matHeaderCellDef>Nombre</th>
+                  <td mat-cell *matCellDef="let s">{{ s.name }}</td>
+                </ng-container>
+                <ng-container matColumnDef="location">
+                  <th mat-header-cell *matHeaderCellDef>Ubicación</th>
+                  <td mat-cell *matCellDef="let s">{{ s.latitude | number: '1.4-6' }}, {{ s.longitude | number: '1.4-6' }}</td>
+                </ng-container>
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef>Estado</th>
+                  <td mat-cell *matCellDef="let s"><app-status-chip [status]="s.status" /></td>
+                </ng-container>
+                <ng-container matColumnDef="actions">
+                  <th mat-header-cell *matHeaderCellDef></th>
+                  <td mat-cell *matCellDef="let s" style="text-align:right;white-space:nowrap">
+                    <a mat-icon-button [routerLink]="['/work-sites', s.id, 'geofence']" matTooltip="Geocerca y QR" (click)="$event.stopPropagation()">
+                      <mat-icon>my_location</mat-icon>
+                    </a>
+                    @if (s.status === 'ACTIVE') {
+                      <button mat-icon-button (click)="toggleStatus(s); $event.stopPropagation()" matTooltip="Desactivar"><mat-icon>block</mat-icon></button>
+                    } @else {
+                      <button mat-icon-button (click)="toggleStatus(s); $event.stopPropagation()" matTooltip="Activar"><mat-icon>check_circle</mat-icon></button>
+                    }
+                  </td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="columns"></tr>
+                <tr mat-row *matRowDef="let row; columns: columns"
+                    (click)="startEdit(row)"
+                    [style.background]="row.id === editingId() ? 'var(--brand-soft)' : ''"
+                    style="cursor:pointer"></tr>
+              </table>
+            </div>
+
+            @if (!loading() && sites().length === 0) {
+              <app-empty-state icon="place" message="No hay centros de trabajo para mostrar." />
+            }
+
+            <mat-paginator
+              [length]="total()"
+              [pageSize]="size()"
+              [pageIndex]="page()"
+              [pageSizeOptions]="[10, 20, 50]"
+              (page)="onPage($event)"
+            />
+          </mat-card-content>
+        </mat-card>
+      </div>
+
+      @if (showForm()) {
+        <aside class="split-drawer">
+          <div class="drawer-header">
+            <div class="titles"><h3>{{ editingId() ? 'Editar centro' : 'Nuevo centro' }}</h3></div>
+            <button mat-icon-button (click)="cancelForm()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+          </div>
+          <div class="drawer-body">
+            <form [formGroup]="form" style="display:flex;flex-direction:column">
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Código</mat-label>
+                <input matInput formControlName="code" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Nombre</mat-label>
+                <input matInput formControlName="name" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Dirección</mat-label>
+                <input matInput formControlName="address" />
+              </mat-form-field>
+              <div class="drawer-row">
+                <mat-form-field appearance="outline" class="drawer-field">
+                  <mat-label>Latitud</mat-label>
+                  <input matInput type="number" step="any" formControlName="latitude" readonly />
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="drawer-field">
+                  <mat-label>Longitud</mat-label>
+                  <input matInput type="number" step="any" formControlName="longitude" readonly />
+                </mat-form-field>
+              </div>
+              <button mat-stroked-button type="button" (click)="pickLocation()" class="full-width" style="margin-bottom:8px">
+                <mat-icon>place</mat-icon> Seleccionar en el mapa
+              </button>
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Zona horaria</mat-label>
+                <input matInput formControlName="timezone" placeholder="America/Lima" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Precisión GPS máx (m)</mat-label>
+                <input matInput type="number" formControlName="gpsAccuracyMaxM" />
+              </mat-form-field>
+              <mat-checkbox formControlName="requirePhoto">Foto obligatoria</mat-checkbox>
+              <mat-checkbox formControlName="requireBiometric" style="margin-top:8px">Biometría obligatoria</mat-checkbox>
+            </form>
+          </div>
+          <div class="drawer-actions">
+            <button mat-button (click)="cancelForm()">Cancelar</button>
+            <button mat-flat-button color="primary" [disabled]="form.invalid || loading()" (click)="save()">
               {{ editingId() ? 'Guardar' : 'Crear' }}
             </button>
-            <button mat-button type="button" (click)="cancelForm()">Cancelar</button>
-          </form>
-        </mat-card-content>
-      </mat-card>
-    }
-
-    <mat-card>
-      <mat-card-content>
-        @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
-        @if (error()) { <p class="error-text">{{ error() }}</p> }
-
-        <table mat-table [dataSource]="sites()" style="width:100%">
-          <ng-container matColumnDef="code">
-            <th mat-header-cell *matHeaderCellDef>Código</th>
-            <td mat-cell *matCellDef="let s">{{ s.code }}</td>
-          </ng-container>
-          <ng-container matColumnDef="name">
-            <th mat-header-cell *matHeaderCellDef>Nombre</th>
-            <td mat-cell *matCellDef="let s">{{ s.name }}</td>
-          </ng-container>
-          <ng-container matColumnDef="location">
-            <th mat-header-cell *matHeaderCellDef>Ubicación</th>
-            <td mat-cell *matCellDef="let s">{{ s.latitude | number: '1.4-6' }}, {{ s.longitude | number: '1.4-6' }}</td>
-          </ng-container>
-          <ng-container matColumnDef="status">
-            <th mat-header-cell *matHeaderCellDef>Estado</th>
-            <td mat-cell *matCellDef="let s"><app-status-chip [status]="s.status" /></td>
-          </ng-container>
-          <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef></th>
-            <td mat-cell *matCellDef="let s" style="text-align:right;white-space:nowrap">
-              <a mat-icon-button [routerLink]="['/work-sites', s.id, 'geofence']" matTooltip="Geocerca y QR">
-                <mat-icon>my_location</mat-icon>
-              </a>
-              <button mat-icon-button (click)="startEdit(s)" matTooltip="Editar"><mat-icon>edit</mat-icon></button>
-              @if (s.status === 'ACTIVE') {
-                <button mat-icon-button (click)="toggleStatus(s)" matTooltip="Desactivar"><mat-icon>block</mat-icon></button>
-              } @else {
-                <button mat-icon-button (click)="toggleStatus(s)" matTooltip="Activar"><mat-icon>check_circle</mat-icon></button>
-              }
-            </td>
-          </ng-container>
-          <tr mat-header-row *matHeaderRowDef="columns"></tr>
-          <tr mat-row *matRowDef="let row; columns: columns"></tr>
-        </table>
-
-        @if (!loading() && sites().length === 0) {
-          <app-empty-state icon="place" message="No hay centros de trabajo para mostrar." />
-        }
-
-        <mat-paginator
-          [length]="total()"
-          [pageSize]="size()"
-          [pageIndex]="page()"
-          [pageSizeOptions]="[10, 20, 50]"
-          (page)="onPage($event)"
-        />
-      </mat-card-content>
-    </mat-card>
+          </div>
+        </aside>
+      }
+    </div>
   `,
+  styles: [`.drawer-row { display: flex; gap: var(--sp-3); } .drawer-row mat-form-field { flex: 1; }`],
 })
 export class WorkSitesComponent {
   private readonly fb = inject(FormBuilder);

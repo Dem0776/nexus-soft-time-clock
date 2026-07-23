@@ -81,34 +81,35 @@ import { EventTypesService } from './event-types.service';
       .row {
         display: flex;
         align-items: center;
-        gap: 16px;
-        padding: 8px 0;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        gap: var(--sp-4);
+        padding: var(--sp-3) 0;
+        border-bottom: 1px solid var(--border);
       }
+      .row:last-of-type { border-bottom: none; }
       .info {
-        width: 150px;
+        width: 160px;
         display: flex;
         flex-direction: column;
+        gap: 2px;
       }
       .code {
-        font-weight: 600;
-        font-size: 0.85rem;
+        font-weight: 650;
+        font-size: var(--font-body);
       }
       .core-tag {
-        font-size: 0.7rem;
-        color: var(--brand, #3f51b5);
+        font-size: var(--font-caption);
+        font-weight: 700;
+        color: var(--brand);
         text-transform: uppercase;
+        letter-spacing: 0.04em;
       }
       .label-field {
         flex: 1 1 auto;
       }
       .actions {
-        margin-top: 16px;
+        margin-top: var(--sp-4);
         display: flex;
-        gap: 8px;
-      }
-      .error-text {
-        color: #c62828;
+        gap: var(--sp-2);
       }
     `,
   ],

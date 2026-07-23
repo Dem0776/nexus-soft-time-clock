@@ -1,9 +1,10 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, ViewChild, computed, inject, signal, OnDestroy } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
 import * as L from 'leaflet';
 
+import { EmptyStateComponent } from '../../core/ui/empty-state.component';
 import { PageHeaderComponent } from '../../core/ui/page-header.component';
 import { WorkSite } from '../admin/work-sites/work-site.models';
 import { WorkSiteService } from '../admin/work-sites/work-site.service';
@@ -17,32 +18,38 @@ import { AttendanceEvent, RealtimeService } from './realtime.service';
 @Component({
   selector: 'app-realtime-map',
   standalone: true,
-  imports: [MatCardModule, MatIconModule, MatListModule, PageHeaderComponent],
+  imports: [MatCardModule, MatIconModule, MatListModule, PageHeaderComponent, EmptyStateComponent],
   template: `
-    <app-page-header title="Mapa en tiempo real">
-      <span [style.color]="connected() ? '#2e7d32' : '#b3261e'">
-        <mat-icon style="vertical-align:middle">{{ connected() ? 'sensors' : 'sensors_off' }}</mat-icon>
-        {{ connected() ? 'Conectado' : 'Desconectado' }}
+    <app-page-header title="Mapa en tiempo real" subtitle="Visualiza los fichajes de tu operación a medida que ocurren">
+      <span class="conn-badge" [class.on]="connected()">
+        <mat-icon>{{ connected() ? 'sensors' : 'sensors_off' }}</mat-icon>
+        {{ connected() ? 'Conectado en tiempo real' : 'Reconectando…' }}
       </span>
     </app-page-header>
 
-    <div style="display:flex;gap:16px;flex-wrap:wrap">
-      <mat-card style="flex:2 1 520px">
+    <div class="map-layout">
+      <mat-card class="map-card">
         <mat-card-content>
-          <div #mapEl style="height:460px;border-radius:8px;overflow:hidden"></div>
+          <div #mapEl class="map-canvas"></div>
         </mat-card-content>
       </mat-card>
 
-      <mat-card style="flex:1 1 300px">
-        <mat-card-header><mat-card-title>Eventos recientes</mat-card-title></mat-card-header>
+      <mat-card class="feed-card">
+        <mat-card-header>
+          <mat-card-title>Eventos recientes</mat-card-title>
+        </mat-card-header>
         <mat-card-content>
+          <div class="feed-stats">
+            <span class="stat success"><mat-icon>check_circle</mat-icon> {{ acceptedCount() }} aceptados</span>
+            <span class="stat danger"><mat-icon>cancel</mat-icon> {{ rejectedCount() }} rechazados</span>
+          </div>
           @if (feed().length === 0) {
-            <p class="muted">Esperando eventos de asistencia…</p>
+            <app-empty-state icon="sensors" message="Esperando eventos de asistencia…" />
           }
           <mat-list>
             @for (e of feed(); track e.attendanceId) {
               <mat-list-item>
-                <mat-icon matListItemIcon [style.color]="e.type === 'ACCEPTED' ? '#2e7d32' : '#b3261e'">
+                <mat-icon matListItemIcon [style.color]="e.type === 'ACCEPTED' ? 'var(--success)' : 'var(--danger)'">
                   {{ e.type === 'ACCEPTED' ? 'check_circle' : 'cancel' }}
                 </mat-icon>
                 <span matListItemTitle>{{ e.type === 'ACCEPTED' ? (e.eventKind || 'Registro') : (e.reason || 'Rechazo') }}</span>
@@ -54,6 +61,42 @@ import { AttendanceEvent, RealtimeService } from './realtime.service';
       </mat-card>
     </div>
   `,
+  styles: [
+    `
+      .conn-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: var(--font-small);
+        font-weight: 600;
+        padding: 4px 12px;
+        border-radius: 999px;
+        color: var(--neutral);
+        background: var(--neutral-bg);
+      }
+      .conn-badge.on { color: var(--success); background: var(--success-bg); }
+      .conn-badge mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+      .map-layout { display: flex; gap: var(--sp-4); flex-wrap: wrap; }
+      .map-card { flex: 2 1 520px; }
+      .feed-card { flex: 1 1 300px; }
+      .map-canvas { height: 460px; border-radius: var(--radius-md); overflow: hidden; }
+
+      .feed-stats { display: flex; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+      .stat {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: var(--font-small);
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 999px;
+      }
+      .stat.success { color: var(--success); background: var(--success-bg); }
+      .stat.danger { color: var(--danger); background: var(--danger-bg); }
+      .stat mat-icon { font-size: 14px; width: 14px; height: 14px; }
+    `,
+  ],
 })
 export class RealtimeMapComponent implements AfterViewInit, OnDestroy {
   @ViewChild('mapEl') private mapEl!: ElementRef<HTMLDivElement>;
@@ -63,6 +106,8 @@ export class RealtimeMapComponent implements AfterViewInit, OnDestroy {
 
   protected readonly connected = signal(false);
   protected readonly feed = signal<AttendanceEvent[]>([]);
+  protected readonly acceptedCount = computed(() => this.feed().filter((e) => e.type === 'ACCEPTED').length);
+  protected readonly rejectedCount = computed(() => this.feed().filter((e) => e.type === 'REJECTED').length);
 
   private map?: L.Map;
   private readonly siteMarkers = new Map<string, L.CircleMarker>();
@@ -98,8 +143,8 @@ export class RealtimeMapComponent implements AfterViewInit, OnDestroy {
     for (const site of sites) {
       const marker = L.circleMarker([site.latitude, site.longitude], {
         radius: 8,
-        color: '#1565c0',
-        fillColor: '#1565c0',
+        color: '#3949ab',
+        fillColor: '#3949ab',
         fillOpacity: 0.4,
       })
         .addTo(this.map)
@@ -125,7 +170,7 @@ export class RealtimeMapComponent implements AfterViewInit, OnDestroy {
 
   /** Resalta brevemente el centro que recibió un registro. */
   private pulse(marker: L.CircleMarker): void {
-    marker.setStyle({ color: '#2e7d32', fillColor: '#2e7d32', radius: 14 });
-    setTimeout(() => marker.setStyle({ color: '#1565c0', fillColor: '#1565c0', radius: 8 }), 1200);
+    marker.setStyle({ color: '#0f7a52', fillColor: '#0f7a52', radius: 14 });
+    setTimeout(() => marker.setStyle({ color: '#3949ab', fillColor: '#3949ab', radius: 8 }), 1200);
   }
 }

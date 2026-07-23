@@ -37,105 +37,114 @@ import { ProjectService } from './project.service';
     EmptyStateComponent,
   ],
   template: `
-    <app-page-header title="Proyectos">
+    <app-page-header title="Proyectos" subtitle="Administra los proyectos de la organización">
       <button mat-flat-button color="primary" (click)="startCreate()">
         <mat-icon>add</mat-icon> Nuevo proyecto
       </button>
     </app-page-header>
 
-    @if (showForm()) {
-      <mat-card style="margin-bottom:16px">
-        <mat-card-header>
-          <mat-card-title>{{ editingId() ? 'Editar proyecto' : 'Nuevo proyecto' }}</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <form [formGroup]="form" (ngSubmit)="save()" style="display:flex;gap:12px;flex-wrap:wrap;align-items:baseline">
-            <mat-form-field appearance="outline">
-              <mat-label>Código</mat-label>
-              <input matInput formControlName="code" />
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Nombre</mat-label>
-              <input matInput formControlName="name" />
-            </mat-form-field>
-            @if (editingId()) {
-              <mat-form-field appearance="outline" style="width:150px">
-                <mat-label>Estado</mat-label>
-                <mat-select formControlName="status">
-                  @for (s of statuses; track s) { <mat-option [value]="s">{{ s }}</mat-option> }
-                </mat-select>
-              </mat-form-field>
+    <div class="split-layout">
+      <div class="split-main">
+        <mat-card>
+          <mat-card-content>
+            @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+            @if (error()) { <p class="error-text">{{ error() }}</p> }
+
+            <div class="table-wrap">
+              <table mat-table [dataSource]="projects()" style="width:100%">
+                <ng-container matColumnDef="code">
+                  <th mat-header-cell *matHeaderCellDef>Código</th>
+                  <td mat-cell *matCellDef="let p">{{ p.code }}</td>
+                </ng-container>
+                <ng-container matColumnDef="name">
+                  <th mat-header-cell *matHeaderCellDef>Nombre</th>
+                  <td mat-cell *matCellDef="let p">{{ p.name }}</td>
+                </ng-container>
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef>Estado</th>
+                  <td mat-cell *matCellDef="let p"><app-status-chip [status]="p.status" /></td>
+                </ng-container>
+                <ng-container matColumnDef="dates">
+                  <th mat-header-cell *matHeaderCellDef>Vigencia</th>
+                  <td mat-cell *matCellDef="let p">{{ p.startsOn || '—' }} → {{ p.endsOn || '—' }}</td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="columns"></tr>
+                <tr mat-row *matRowDef="let row; columns: columns"
+                    (click)="startEdit(row)"
+                    [style.background]="row.id === editingId() ? 'var(--brand-soft)' : ''"
+                    style="cursor:pointer"></tr>
+              </table>
+            </div>
+
+            @if (!loading() && projects().length === 0) {
+              <app-empty-state icon="work" message="No hay proyectos para mostrar." />
             }
-            <mat-form-field appearance="outline" style="width:160px">
-              <mat-label>Inicio</mat-label>
-              <input matInput type="date" formControlName="startsOn" />
-            </mat-form-field>
-            <mat-form-field appearance="outline" style="width:160px">
-              <mat-label>Fin</mat-label>
-              <input matInput type="date" formControlName="endsOn" />
-            </mat-form-field>
-            <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid || loading()">
+
+            <mat-paginator
+              [length]="total()"
+              [pageSize]="size()"
+              [pageIndex]="page()"
+              [pageSizeOptions]="[10, 20, 50]"
+              (page)="onPage($event)"
+            />
+          </mat-card-content>
+        </mat-card>
+      </div>
+
+      @if (showForm()) {
+        <aside class="split-drawer">
+          <div class="drawer-header">
+            <div class="titles"><h3>{{ editingId() ? 'Editar proyecto' : 'Nuevo proyecto' }}</h3></div>
+            <button mat-icon-button (click)="cancelForm()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+          </div>
+          <div class="drawer-body">
+            <form [formGroup]="form" style="display:flex;flex-direction:column">
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Código</mat-label>
+                <input matInput formControlName="code" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Nombre</mat-label>
+                <input matInput formControlName="name" />
+              </mat-form-field>
+              @if (editingId()) {
+                <mat-form-field appearance="outline" class="drawer-field">
+                  <mat-label>Estado</mat-label>
+                  <mat-select formControlName="status">
+                    @for (s of statuses; track s) { <mat-option [value]="s">{{ s }}</mat-option> }
+                  </mat-select>
+                </mat-form-field>
+              }
+              <div class="drawer-row">
+                <mat-form-field appearance="outline" class="drawer-field">
+                  <mat-label>Inicio</mat-label>
+                  <input matInput type="date" formControlName="startsOn" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="drawer-field">
+                  <mat-label>Fin</mat-label>
+                  <input matInput type="date" formControlName="endsOn" />
+                </mat-form-field>
+              </div>
+            </form>
+          </div>
+          <div class="drawer-actions">
+            <button mat-button (click)="cancelForm()">Cancelar</button>
+            <button mat-flat-button color="primary" [disabled]="form.invalid || loading()" (click)="save()">
               {{ editingId() ? 'Guardar' : 'Crear' }}
             </button>
-            <button mat-button type="button" (click)="cancelForm()">Cancelar</button>
-          </form>
-        </mat-card-content>
-      </mat-card>
-    }
-
-    <mat-card>
-      <mat-card-content>
-        @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
-        @if (error()) { <p class="error-text">{{ error() }}</p> }
-
-        <table mat-table [dataSource]="projects()" style="width:100%">
-          <ng-container matColumnDef="code">
-            <th mat-header-cell *matHeaderCellDef>Código</th>
-            <td mat-cell *matCellDef="let p">{{ p.code }}</td>
-          </ng-container>
-          <ng-container matColumnDef="name">
-            <th mat-header-cell *matHeaderCellDef>Nombre</th>
-            <td mat-cell *matCellDef="let p">{{ p.name }}</td>
-          </ng-container>
-          <ng-container matColumnDef="status">
-            <th mat-header-cell *matHeaderCellDef>Estado</th>
-            <td mat-cell *matCellDef="let p"><app-status-chip [status]="p.status" /></td>
-          </ng-container>
-          <ng-container matColumnDef="dates">
-            <th mat-header-cell *matHeaderCellDef>Vigencia</th>
-            <td mat-cell *matCellDef="let p">{{ p.startsOn || '—' }} → {{ p.endsOn || '—' }}</td>
-          </ng-container>
-          <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef></th>
-            <td mat-cell *matCellDef="let p" style="text-align:right">
-              <button mat-icon-button (click)="startEdit(p)" aria-label="Editar"><mat-icon>edit</mat-icon></button>
-            </td>
-          </ng-container>
-          <tr mat-header-row *matHeaderRowDef="columns"></tr>
-          <tr mat-row *matRowDef="let row; columns: columns"></tr>
-        </table>
-
-        @if (!loading() && projects().length === 0) {
-          <app-empty-state icon="work" message="No hay proyectos para mostrar." />
-        }
-
-        <mat-paginator
-          [length]="total()"
-          [pageSize]="size()"
-          [pageIndex]="page()"
-          [pageSizeOptions]="[10, 20, 50]"
-          (page)="onPage($event)"
-        />
-      </mat-card-content>
-    </mat-card>
+          </div>
+        </aside>
+      }
+    </div>
   `,
+  styles: [`.drawer-row { display: flex; gap: var(--sp-3); } .drawer-row mat-form-field { flex: 1; }`],
 })
 export class ProjectsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(ProjectService);
   private readonly notify = inject(NotificationService);
 
-  protected readonly columns = ['code', 'name', 'status', 'dates', 'actions'];
+  protected readonly columns = ['code', 'name', 'status', 'dates'];
   protected readonly statuses = PROJECT_STATUSES;
   protected readonly projects = signal<Project[]>([]);
   protected readonly loading = signal(false);

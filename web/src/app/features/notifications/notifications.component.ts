@@ -1,10 +1,10 @@
 import { Component, inject, signal } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
-import { MatListModule } from '@angular/material/list';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 
+import { EmptyStateComponent } from '../../core/ui/empty-state.component';
 import { PageHeaderComponent } from '../../core/ui/page-header.component';
 import { AppNotification } from './notification.models';
 import { NotificationsService } from './notifications.service';
@@ -13,27 +13,30 @@ import { NotificationsService } from './notifications.service';
 @Component({
   selector: 'app-notifications',
   standalone: true,
-  imports: [MatCardModule, MatListModule, MatIconModule, MatPaginatorModule, MatProgressBarModule, PageHeaderComponent],
+  imports: [MatCardModule, MatIconModule, MatPaginatorModule, MatProgressBarModule, PageHeaderComponent, EmptyStateComponent],
   template: `
-    <app-page-header title="Notificaciones" />
+    <app-page-header title="Notificaciones" subtitle="Consulta las notificaciones enviadas por el sistema" />
     <mat-card>
       <mat-card-content>
         @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
         @if (error()) { <p class="error-text">{{ error() }}</p> }
+
         @if (!loading() && notifications().length === 0) {
-          <p class="muted">No tenés notificaciones.</p>
+          <app-empty-state icon="notifications_none" message="No tenés notificaciones." />
         }
 
-        <mat-list>
+        <div class="list">
           @for (n of notifications(); track n.id) {
-            <mat-list-item>
-              <mat-icon matListItemIcon>{{ n.status === 'READ' ? 'mark_email_read' : 'mark_email_unread' }}</mat-icon>
-              <span matListItemTitle>{{ n.title }}</span>
-              <span matListItemLine>{{ n.body }}</span>
-              <span matListItemMeta class="muted">{{ n.channel }}</span>
-            </mat-list-item>
+            <div class="item" [class.unread]="n.status !== 'READ'">
+              <mat-icon class="item-icon">{{ n.status === 'READ' ? 'mark_email_read' : 'mark_email_unread' }}</mat-icon>
+              <div class="item-body">
+                <div class="item-title">{{ n.title }}</div>
+                <div class="item-text muted">{{ n.body }}</div>
+              </div>
+              <span class="item-channel">{{ n.channel }}</span>
+            </div>
           }
-        </mat-list>
+        </div>
 
         <mat-paginator
           [length]="total()"
@@ -45,6 +48,36 @@ import { NotificationsService } from './notifications.service';
       </mat-card-content>
     </mat-card>
   `,
+  styles: [
+    `
+      .list { display: flex; flex-direction: column; }
+      .item {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--sp-3);
+        padding: var(--sp-4) 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .item:last-child { border-bottom: none; }
+      .item-icon { color: var(--text-soft); flex: 0 0 auto; margin-top: 2px; }
+      .item.unread .item-icon { color: var(--brand); }
+      .item-body { flex: 1 1 auto; min-width: 0; }
+      .item-title { font-weight: 600; font-size: var(--font-body); }
+      .item.unread .item-title { font-weight: 700; }
+      .item-text { font-size: var(--font-body); margin-top: 2px; }
+      .item-channel {
+        flex: 0 0 auto;
+        font-size: var(--font-caption);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-muted);
+        background: var(--surface-2);
+        padding: 3px 8px;
+        border-radius: 999px;
+      }
+    `,
+  ],
 })
 export class NotificationsComponent {
   private readonly service = inject(NotificationsService);

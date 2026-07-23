@@ -25,13 +25,14 @@ import { Component, Input } from '@angular/core';
       }
       .titles h2 {
         margin: 0;
-        font-size: 1.5rem;
+        font-size: var(--font-page-title);
         font-weight: 700;
+        letter-spacing: -0.01em;
       }
       .subtitle {
-        margin: 2px 0 0;
+        margin: 4px 0 0;
         color: var(--text-muted);
-        font-size: 0.9rem;
+        font-size: var(--font-body);
       }
       .spacer { flex: 1 1 auto; }
       .actions { display: flex; gap: 8px; align-items: center; }

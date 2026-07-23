@@ -11,6 +11,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
 
+import { EmptyStateComponent } from '../../../core/ui/empty-state.component';
 import { NotificationService } from '../../../core/ui/notification.service';
 import { PageHeaderComponent } from '../../../core/ui/page-header.component';
 import { StatusChipComponent } from '../../../core/ui/status-chip.component';
@@ -38,135 +39,155 @@ import { SchedulingService } from './scheduling.service';
     MatCheckboxModule,
     PageHeaderComponent,
     StatusChipComponent,
+    EmptyStateComponent,
   ],
   template: `
-    <app-page-header title="Horarios y turnos" />
+    <app-page-header title="Horarios y turnos" subtitle="Define y administra los horarios y turnos utilizados por los colaboradores">
+      <button mat-flat-button color="primary" (click)="startCreateSchedule()">
+        <mat-icon>add</mat-icon> Nuevo horario
+      </button>
+    </app-page-header>
     @if (error()) { <p class="error-text">{{ error() }}</p> }
 
     <mat-tab-group>
-      <!-- Horarios y sus turnos -->
       <mat-tab label="Horarios y turnos">
-        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px">
-          <mat-card style="flex:1 1 380px">
-            <mat-card-header><mat-card-title>Horarios</mat-card-title></mat-card-header>
-            <mat-card-content>
-              <form [formGroup]="scheduleForm" (ngSubmit)="saveSchedule()" style="display:flex;gap:8px;flex-wrap:wrap;align-items:baseline">
-                <mat-form-field appearance="outline" style="width:110px">
-                  <mat-label>Código</mat-label>
-                  <input matInput formControlName="code" />
-                </mat-form-field>
-                <mat-form-field appearance="outline">
-                  <mat-label>Nombre</mat-label>
-                  <input matInput formControlName="name" />
-                </mat-form-field>
-                <mat-form-field appearance="outline" style="width:150px">
-                  <mat-label>Zona horaria</mat-label>
-                  <input matInput formControlName="timezone" placeholder="America/Lima" />
-                </mat-form-field>
-                @if (editingScheduleId()) {
-                  <mat-form-field appearance="outline" style="width:130px">
-                    <mat-label>Estado</mat-label>
-                    <mat-select formControlName="status">
-                      @for (s of scheduleStatuses; track s) { <mat-option [value]="s">{{ s }}</mat-option> }
-                    </mat-select>
+        <div class="split-layout" style="margin-top:16px">
+          <div class="split-main">
+            <mat-card>
+              <mat-card-content>
+                <div class="table-wrap">
+                  <table mat-table [dataSource]="schedules()" style="width:100%">
+                    <ng-container matColumnDef="code">
+                      <th mat-header-cell *matHeaderCellDef>Código</th>
+                      <td mat-cell *matCellDef="let s">{{ s.code }}</td>
+                    </ng-container>
+                    <ng-container matColumnDef="name">
+                      <th mat-header-cell *matHeaderCellDef>Nombre</th>
+                      <td mat-cell *matCellDef="let s">{{ s.name }}</td>
+                    </ng-container>
+                    <ng-container matColumnDef="status">
+                      <th mat-header-cell *matHeaderCellDef>Estado</th>
+                      <td mat-cell *matCellDef="let s"><app-status-chip [status]="s.status" /></td>
+                    </ng-container>
+                    <ng-container matColumnDef="actions">
+                      <th mat-header-cell *matHeaderCellDef></th>
+                      <td mat-cell *matCellDef="let s" style="text-align:right;white-space:nowrap">
+                        <button mat-icon-button (click)="editSchedule(s); $event.stopPropagation()" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+                      </td>
+                    </ng-container>
+                    <tr mat-header-row *matHeaderRowDef="scheduleColumns"></tr>
+                    <tr mat-row *matRowDef="let row; columns: scheduleColumns"
+                        (click)="selectSchedule(row)"
+                        style="cursor:pointer"
+                        [style.background]="row.id === selectedSchedule()?.id ? 'var(--brand-soft)' : ''"></tr>
+                  </table>
+                </div>
+                @if (schedules().length === 0) {
+                  <app-empty-state icon="event" message="No hay horarios para mostrar." />
+                }
+              </mat-card-content>
+            </mat-card>
+
+            @if (selectedSchedule(); as sc) {
+              <mat-card style="margin-top:16px">
+                <mat-card-header><mat-card-title>Turnos de {{ sc.name }}</mat-card-title></mat-card-header>
+                <mat-card-content>
+                  <form [formGroup]="shiftForm" (ngSubmit)="saveShift()" class="filter-bar" style="align-items:baseline">
+                    <mat-form-field appearance="outline" style="width:160px">
+                      <mat-label>Nombre</mat-label>
+                      <input matInput formControlName="name" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" style="width:120px">
+                      <mat-label>Entrada</mat-label>
+                      <input matInput type="time" formControlName="startTime" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" style="width:120px">
+                      <mat-label>Salida</mat-label>
+                      <input matInput type="time" formControlName="endTime" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" style="width:150px">
+                      <mat-label>Tolerancia (min)</mat-label>
+                      <input matInput type="number" formControlName="lateToleranceMin" />
+                    </mat-form-field>
+                    <mat-checkbox formControlName="crossesMidnight">Cruza medianoche</mat-checkbox>
+                    <button mat-flat-button color="primary" type="submit" [disabled]="shiftForm.invalid">
+                      {{ editingShiftId() ? 'Guardar' : 'Agregar' }}
+                    </button>
+                    @if (editingShiftId()) {
+                      <button mat-button type="button" (click)="resetShiftForm()">Cancelar</button>
+                    }
+                  </form>
+
+                  <div class="table-wrap">
+                    <table mat-table [dataSource]="shifts()" style="width:100%">
+                      <ng-container matColumnDef="name">
+                        <th mat-header-cell *matHeaderCellDef>Turno</th>
+                        <td mat-cell *matCellDef="let s">{{ s.name }}</td>
+                      </ng-container>
+                      <ng-container matColumnDef="time">
+                        <th mat-header-cell *matHeaderCellDef>Horario</th>
+                        <td mat-cell *matCellDef="let s">{{ s.startTime }}–{{ s.endTime }}</td>
+                      </ng-container>
+                      <ng-container matColumnDef="tolerance">
+                        <th mat-header-cell *matHeaderCellDef>Tol.</th>
+                        <td mat-cell *matCellDef="let s">{{ s.lateToleranceMin }}m</td>
+                      </ng-container>
+                      <ng-container matColumnDef="actions">
+                        <th mat-header-cell *matHeaderCellDef></th>
+                        <td mat-cell *matCellDef="let s" style="text-align:right">
+                          <button mat-icon-button (click)="editShift(s)" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+                        </td>
+                      </ng-container>
+                      <tr mat-header-row *matHeaderRowDef="shiftColumns"></tr>
+                      <tr mat-row *matRowDef="let row; columns: shiftColumns"></tr>
+                    </table>
+                  </div>
+                  @if (shifts().length === 0) {
+                    <app-empty-state icon="schedule" message="Este horario aún no tiene turnos." />
+                  }
+                </mat-card-content>
+              </mat-card>
+            }
+          </div>
+
+          @if (showScheduleForm()) {
+            <aside class="split-drawer">
+              <div class="drawer-header">
+                <div class="titles"><h3>{{ editingScheduleId() ? 'Editar horario' : 'Nuevo horario' }}</h3></div>
+                <button mat-icon-button (click)="resetScheduleForm()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+              </div>
+              <div class="drawer-body">
+                <form [formGroup]="scheduleForm" style="display:flex;flex-direction:column">
+                  <mat-form-field appearance="outline" class="drawer-field">
+                    <mat-label>Código</mat-label>
+                    <input matInput formControlName="code" />
                   </mat-form-field>
-                }
-                <button mat-flat-button color="primary" type="submit" [disabled]="scheduleForm.invalid">
-                  {{ editingScheduleId() ? 'Guardar' : 'Crear' }}
-                </button>
-                @if (editingScheduleId()) {
-                  <button mat-button type="button" (click)="resetScheduleForm()">Cancelar</button>
-                }
-              </form>
-
-              <table mat-table [dataSource]="schedules()" style="width:100%;margin-top:12px">
-                <ng-container matColumnDef="code">
-                  <th mat-header-cell *matHeaderCellDef>Código</th>
-                  <td mat-cell *matCellDef="let s">{{ s.code }}</td>
-                </ng-container>
-                <ng-container matColumnDef="name">
-                  <th mat-header-cell *matHeaderCellDef>Nombre</th>
-                  <td mat-cell *matCellDef="let s">{{ s.name }}</td>
-                </ng-container>
-                <ng-container matColumnDef="status">
-                  <th mat-header-cell *matHeaderCellDef>Estado</th>
-                  <td mat-cell *matCellDef="let s"><app-status-chip [status]="s.status" /></td>
-                </ng-container>
-                <ng-container matColumnDef="actions">
-                  <th mat-header-cell *matHeaderCellDef></th>
-                  <td mat-cell *matCellDef="let s" style="text-align:right;white-space:nowrap">
-                    <button mat-icon-button (click)="selectSchedule(s)" aria-label="Turnos"><mat-icon>list</mat-icon></button>
-                    <button mat-icon-button (click)="editSchedule(s)" aria-label="Editar"><mat-icon>edit</mat-icon></button>
-                  </td>
-                </ng-container>
-                <tr mat-header-row *matHeaderRowDef="scheduleColumns"></tr>
-                <tr mat-row *matRowDef="let row; columns: scheduleColumns"
-                    [style.background]="row.id === selectedSchedule()?.id ? 'rgba(21,101,192,.08)' : ''"></tr>
-              </table>
-            </mat-card-content>
-          </mat-card>
-
-          <mat-card style="flex:1 1 460px">
-            <mat-card-header>
-              <mat-card-title>
-                Turnos {{ selectedSchedule() ? 'de ' + selectedSchedule()!.name : '' }}
-              </mat-card-title>
-            </mat-card-header>
-            <mat-card-content>
-              @if (!selectedSchedule()) {
-                <p class="muted">Seleccioná un horario para gestionar sus turnos.</p>
-              } @else {
-                <form [formGroup]="shiftForm" (ngSubmit)="saveShift()" style="display:flex;gap:8px;flex-wrap:wrap;align-items:baseline">
-                  <mat-form-field appearance="outline" style="width:140px">
+                  <mat-form-field appearance="outline" class="drawer-field">
                     <mat-label>Nombre</mat-label>
                     <input matInput formControlName="name" />
                   </mat-form-field>
-                  <mat-form-field appearance="outline" style="width:120px">
-                    <mat-label>Entrada</mat-label>
-                    <input matInput type="time" formControlName="startTime" />
+                  <mat-form-field appearance="outline" class="drawer-field">
+                    <mat-label>Zona horaria</mat-label>
+                    <input matInput formControlName="timezone" placeholder="America/Lima" />
                   </mat-form-field>
-                  <mat-form-field appearance="outline" style="width:120px">
-                    <mat-label>Salida</mat-label>
-                    <input matInput type="time" formControlName="endTime" />
-                  </mat-form-field>
-                  <mat-form-field appearance="outline" style="width:130px">
-                    <mat-label>Tolerancia (min)</mat-label>
-                    <input matInput type="number" formControlName="lateToleranceMin" />
-                  </mat-form-field>
-                  <mat-checkbox formControlName="crossesMidnight">Cruza medianoche</mat-checkbox>
-                  <button mat-flat-button color="primary" type="submit" [disabled]="shiftForm.invalid">
-                    {{ editingShiftId() ? 'Guardar' : 'Agregar' }}
-                  </button>
-                  @if (editingShiftId()) {
-                    <button mat-button type="button" (click)="resetShiftForm()">Cancelar</button>
+                  @if (editingScheduleId()) {
+                    <mat-form-field appearance="outline" class="drawer-field">
+                      <mat-label>Estado</mat-label>
+                      <mat-select formControlName="status">
+                        @for (s of scheduleStatuses; track s) { <mat-option [value]="s">{{ s }}</mat-option> }
+                      </mat-select>
+                    </mat-form-field>
                   }
                 </form>
-
-                <table mat-table [dataSource]="shifts()" style="width:100%;margin-top:12px">
-                  <ng-container matColumnDef="name">
-                    <th mat-header-cell *matHeaderCellDef>Turno</th>
-                    <td mat-cell *matCellDef="let s">{{ s.name }}</td>
-                  </ng-container>
-                  <ng-container matColumnDef="time">
-                    <th mat-header-cell *matHeaderCellDef>Horario</th>
-                    <td mat-cell *matCellDef="let s">{{ s.startTime }}–{{ s.endTime }}</td>
-                  </ng-container>
-                  <ng-container matColumnDef="tolerance">
-                    <th mat-header-cell *matHeaderCellDef>Tol.</th>
-                    <td mat-cell *matCellDef="let s">{{ s.lateToleranceMin }}m</td>
-                  </ng-container>
-                  <ng-container matColumnDef="actions">
-                    <th mat-header-cell *matHeaderCellDef></th>
-                    <td mat-cell *matCellDef="let s" style="text-align:right">
-                      <button mat-icon-button (click)="editShift(s)" aria-label="Editar"><mat-icon>edit</mat-icon></button>
-                    </td>
-                  </ng-container>
-                  <tr mat-header-row *matHeaderRowDef="shiftColumns"></tr>
-                  <tr mat-row *matRowDef="let row; columns: shiftColumns"></tr>
-                </table>
-              }
-            </mat-card-content>
-          </mat-card>
+              </div>
+              <div class="drawer-actions">
+                <button mat-button (click)="resetScheduleForm()">Cancelar</button>
+                <button mat-flat-button color="primary" [disabled]="scheduleForm.invalid" (click)="saveSchedule()">
+                  {{ editingScheduleId() ? 'Guardar' : 'Crear' }}
+                </button>
+              </div>
+            </aside>
+          }
         </div>
       </mat-tab>
 
@@ -174,7 +195,7 @@ import { SchedulingService } from './scheduling.service';
       <mat-tab label="Asignaciones">
         <mat-card style="margin-top:16px">
           <mat-card-content>
-            <form [formGroup]="assignForm" (ngSubmit)="assign()" style="display:flex;gap:8px;flex-wrap:wrap;align-items:baseline">
+            <form [formGroup]="assignForm" (ngSubmit)="assign()" class="filter-bar" style="align-items:baseline">
               <mat-form-field appearance="outline" style="width:240px">
                 <mat-label>Usuario</mat-label>
                 <mat-select formControlName="userId">
@@ -222,7 +243,7 @@ import { SchedulingService } from './scheduling.service';
               <button mat-flat-button color="primary" type="submit" [disabled]="assignForm.invalid">Asignar</button>
             </form>
 
-            <div style="display:flex;gap:8px;align-items:baseline;margin-top:12px">
+            <div class="filter-bar">
               <mat-form-field appearance="outline" style="width:280px">
                 <mat-label>Listar asignaciones por usuario</mat-label>
                 <mat-select [formControl]="lookupUserId">
@@ -236,22 +257,27 @@ import { SchedulingService } from './scheduling.service';
               <button mat-stroked-button type="button" (click)="loadAssignments()">Buscar</button>
             </div>
 
-            <table mat-table [dataSource]="assignments()" style="width:100%;margin-top:12px">
-              <ng-container matColumnDef="shiftId">
-                <th mat-header-cell *matHeaderCellDef>Turno</th>
-                <td mat-cell *matCellDef="let a">{{ shiftLabel(a.shiftId) }}</td>
-              </ng-container>
-              <ng-container matColumnDef="workSiteId">
-                <th mat-header-cell *matHeaderCellDef>Centro</th>
-                <td mat-cell *matCellDef="let a">{{ workSiteLabel(a.workSiteId) }}</td>
-              </ng-container>
-              <ng-container matColumnDef="range">
-                <th mat-header-cell *matHeaderCellDef>Vigencia</th>
-                <td mat-cell *matCellDef="let a">{{ a.validFrom }} → {{ a.validTo || '—' }}</td>
-              </ng-container>
-              <tr mat-header-row *matHeaderRowDef="assignmentColumns"></tr>
-              <tr mat-row *matRowDef="let row; columns: assignmentColumns"></tr>
-            </table>
+            <div class="table-wrap">
+              <table mat-table [dataSource]="assignments()" style="width:100%">
+                <ng-container matColumnDef="shiftId">
+                  <th mat-header-cell *matHeaderCellDef>Turno</th>
+                  <td mat-cell *matCellDef="let a">{{ shiftLabel(a.shiftId) }}</td>
+                </ng-container>
+                <ng-container matColumnDef="workSiteId">
+                  <th mat-header-cell *matHeaderCellDef>Centro</th>
+                  <td mat-cell *matCellDef="let a">{{ workSiteLabel(a.workSiteId) }}</td>
+                </ng-container>
+                <ng-container matColumnDef="range">
+                  <th mat-header-cell *matHeaderCellDef>Vigencia</th>
+                  <td mat-cell *matCellDef="let a">{{ a.validFrom }} → {{ a.validTo || '—' }}</td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="assignmentColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: assignmentColumns"></tr>
+              </table>
+            </div>
+            @if (assignments().length === 0) {
+              <app-empty-state icon="assignment_ind" message="Buscá un usuario para ver sus asignaciones." />
+            }
           </mat-card-content>
         </mat-card>
       </mat-tab>
@@ -278,6 +304,7 @@ export class SchedulingComponent {
   protected readonly assignShifts = signal<Shift[]>([]);
   protected readonly shiftsById = signal<Record<string, Shift>>({});
   protected readonly selectedSchedule = signal<Schedule | null>(null);
+  protected readonly showScheduleForm = signal(false);
   protected readonly editingScheduleId = signal<string | null>(null);
   protected readonly editingShiftId = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
@@ -382,6 +409,13 @@ export class SchedulingComponent {
     return this.workSites().find((w) => w.id === workSiteId)?.name ?? workSiteId;
   }
 
+  protected startCreateSchedule(): void {
+    this.editingScheduleId.set(null);
+    this.scheduleForm.controls.code.enable();
+    this.scheduleForm.reset({ status: 'ACTIVE' });
+    this.showScheduleForm.set(true);
+  }
+
   protected saveSchedule(): void {
     if (this.scheduleForm.invalid) {
       return;
@@ -414,9 +448,11 @@ export class SchedulingComponent {
       status: schedule.status,
     });
     this.scheduleForm.controls.code.disable();
+    this.showScheduleForm.set(true);
   }
 
   protected resetScheduleForm(): void {
+    this.showScheduleForm.set(false);
     this.editingScheduleId.set(null);
     this.scheduleForm.controls.code.enable();
     this.scheduleForm.reset({ status: 'ACTIVE' });

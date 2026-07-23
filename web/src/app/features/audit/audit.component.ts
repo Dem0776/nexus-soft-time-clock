@@ -1,5 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTableModule } from '@angular/material/table';
@@ -16,63 +18,111 @@ import { AuditService } from './audit.service';
 @Component({
   selector: 'app-audit',
   standalone: true,
-  imports: [MatCardModule, MatTableModule, MatPaginatorModule, MatProgressBarModule, PageHeaderComponent, EmptyStateComponent],
+  imports: [
+    MatCardModule,
+    MatTableModule,
+    MatPaginatorModule,
+    MatProgressBarModule,
+    MatIconModule,
+    MatButtonModule,
+    PageHeaderComponent,
+    EmptyStateComponent,
+  ],
   template: `
-    <app-page-header title="Auditoría" />
-    <mat-card>
-      <mat-card-content>
-        @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
-        @if (error()) { <p class="error-text">{{ error() }}</p> }
+    <app-page-header title="Auditoría" subtitle="Consulta los registros de actividad del sistema" />
 
-        <table mat-table [dataSource]="entries()" style="width:100%">
-          <ng-container matColumnDef="createdAt">
-            <th mat-header-cell *matHeaderCellDef>Fecha/hora</th>
-            <td mat-cell *matCellDef="let e">{{ e.createdAt }}</td>
-          </ng-container>
-          <ng-container matColumnDef="actorUserId">
-            <th mat-header-cell *matHeaderCellDef>Usuario</th>
-            <td mat-cell *matCellDef="let e">{{ e.actorUserId }}</td>
-          </ng-container>
-          <ng-container matColumnDef="action">
-            <th mat-header-cell *matHeaderCellDef>Acción</th>
-            <td mat-cell *matCellDef="let e">{{ e.action }}</td>
-          </ng-container>
-          <ng-container matColumnDef="resource">
-            <th mat-header-cell *matHeaderCellDef>Recurso</th>
-            <td mat-cell *matCellDef="let e">{{ e.resourceType }} · {{ e.resourceId }}</td>
-          </ng-container>
-          <ng-container matColumnDef="newValues">
-            <th mat-header-cell *matHeaderCellDef>Valores nuevos</th>
-            <td mat-cell *matCellDef="let e">
-              <code style="font-size:.75rem">{{ e.newValues || '—' }}</code>
-            </td>
-          </ng-container>
-          <tr mat-header-row *matHeaderRowDef="columns"></tr>
-          <tr mat-row *matRowDef="let row; columns: columns"></tr>
-        </table>
+    <div class="split-layout">
+      <div class="split-main">
+        <mat-card>
+          <mat-card-content>
+            @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+            @if (error()) { <p class="error-text">{{ error() }}</p> }
 
-        @if (!loading() && entries().length === 0) {
-          <app-empty-state icon="fact_check" message="No hay registros de auditoría." />
-        }
+            <div class="table-wrap">
+              <table mat-table [dataSource]="entries()" style="width:100%">
+                <ng-container matColumnDef="createdAt">
+                  <th mat-header-cell *matHeaderCellDef>Fecha/hora</th>
+                  <td mat-cell *matCellDef="let e">{{ e.createdAt }}</td>
+                </ng-container>
+                <ng-container matColumnDef="actorUserId">
+                  <th mat-header-cell *matHeaderCellDef>Usuario</th>
+                  <td mat-cell *matCellDef="let e">{{ e.actorUserId }}</td>
+                </ng-container>
+                <ng-container matColumnDef="action">
+                  <th mat-header-cell *matHeaderCellDef>Acción</th>
+                  <td mat-cell *matCellDef="let e">{{ e.action }}</td>
+                </ng-container>
+                <ng-container matColumnDef="resource">
+                  <th mat-header-cell *matHeaderCellDef>Recurso</th>
+                  <td mat-cell *matCellDef="let e">{{ e.resourceType }} · {{ e.resourceId }}</td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="columns"></tr>
+                <tr mat-row *matRowDef="let row; columns: columns"
+                    (click)="select(row)"
+                    style="cursor:pointer"
+                    [style.background]="row.id === selected()?.id ? 'var(--brand-soft)' : ''"></tr>
+              </table>
+            </div>
 
-        <mat-paginator
-          [length]="total()"
-          [pageSize]="size()"
-          [pageIndex]="page()"
-          [pageSizeOptions]="[25, 50, 100]"
-          (page)="onPage($event)"
-        />
-      </mat-card-content>
-    </mat-card>
+            @if (!loading() && entries().length === 0) {
+              <app-empty-state icon="fact_check" message="No hay registros de auditoría." />
+            }
+
+            <mat-paginator
+              [length]="total()"
+              [pageSize]="size()"
+              [pageIndex]="page()"
+              [pageSizeOptions]="[25, 50, 100]"
+              (page)="onPage($event)"
+            />
+          </mat-card-content>
+        </mat-card>
+      </div>
+
+      @if (selected(); as e) {
+        <aside class="split-drawer">
+          <div class="drawer-header">
+            <div class="titles"><h3>{{ e.action }}</h3><p class="sub">{{ e.createdAt }}</p></div>
+            <button mat-icon-button (click)="selected.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+          </div>
+          <div class="drawer-body">
+            <div class="detail-grid">
+              <div class="detail-row"><span class="k">Usuario</span><span class="v">{{ e.actorUserId }}</span></div>
+              <div class="detail-row"><span class="k">Acción</span><span class="v">{{ e.action }}</span></div>
+              <div class="detail-row"><span class="k">Recurso</span><span class="v">{{ e.resourceType }}</span></div>
+              <div class="detail-row"><span class="k">ID del recurso</span><span class="v">{{ e.resourceId }}</span></div>
+              @if (e.newValues) {
+                <div class="detail-section-title">Valores nuevos</div>
+                <pre class="values-block">{{ e.newValues }}</pre>
+              }
+            </div>
+          </div>
+        </aside>
+      }
+    </div>
   `,
+  styles: [
+    `
+      .values-block {
+        margin: 0;
+        padding: var(--sp-3);
+        background: var(--surface-2);
+        border-radius: var(--radius-sm);
+        font-size: var(--font-small);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+    `,
+  ],
 })
 export class AuditComponent {
   private readonly service = inject(AuditService);
 
-  protected readonly columns = ['createdAt', 'actorUserId', 'action', 'resource', 'newValues'];
+  protected readonly columns = ['createdAt', 'actorUserId', 'action', 'resource'];
   protected readonly entries = signal<AuditEntry[]>([]);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly selected = signal<AuditEntry | null>(null);
 
   protected readonly page = signal(0);
   protected readonly size = signal(50);
@@ -96,6 +146,10 @@ export class AuditComponent {
         this.loading.set(false);
       },
     });
+  }
+
+  protected select(entry: AuditEntry): void {
+    this.selected.set(entry);
   }
 
   protected onPage(event: PageEvent): void {

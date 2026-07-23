@@ -38,106 +38,126 @@ import { CompanyService } from './company.service';
     EmptyStateComponent,
   ],
   template: `
-    <app-page-header title="Empresas">
+    <app-page-header title="Empresas" subtitle="Administra las empresas registradas en el sistema">
       <button mat-flat-button color="primary" (click)="startCreate()">
         <mat-icon>add</mat-icon> Nueva empresa
       </button>
     </app-page-header>
 
-    @if (showForm()) {
-      <mat-card style="margin-bottom:16px">
-        <mat-card-header>
-          <mat-card-title>{{ editingId() ? 'Editar empresa' : 'Nueva empresa' }}</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <form [formGroup]="form" (ngSubmit)="save()" style="display:flex;gap:12px;flex-wrap:wrap;align-items:baseline">
-            <mat-form-field appearance="outline">
-              <mat-label>Código</mat-label>
-              <input matInput formControlName="code" />
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Nombre</mat-label>
-              <input matInput formControlName="name" />
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Razón social</mat-label>
-              <input matInput formControlName="legalName" />
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Dominio de correo</mat-label>
-              <input matInput formControlName="emailDomain" placeholder="empresa.com" />
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Zona horaria</mat-label>
-              <input matInput formControlName="timezone" placeholder="America/Lima" />
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Idioma</mat-label>
-              <input matInput formControlName="locale" placeholder="es" />
-            </mat-form-field>
-            <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid || loading()">
+    <div class="split-layout">
+      <div class="split-main">
+        <mat-card>
+          <mat-card-content>
+            <div class="filter-bar">
+              <mat-form-field appearance="outline" class="search">
+                <mat-icon matPrefix>search</mat-icon>
+                <mat-label>Buscar por código o nombre</mat-label>
+                <input matInput [formControl]="searchControl" (keyup.enter)="applySearch()" />
+              </mat-form-field>
+              <button mat-stroked-button type="button" (click)="applySearch()">Buscar</button>
+            </div>
+
+            @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+            @if (error()) { <p class="error-text">{{ error() }}</p> }
+
+            <div class="table-wrap">
+              <table mat-table [dataSource]="companies()" style="width:100%">
+                <ng-container matColumnDef="code">
+                  <th mat-header-cell *matHeaderCellDef>Código</th>
+                  <td mat-cell *matCellDef="let c">{{ c.code }}</td>
+                </ng-container>
+                <ng-container matColumnDef="name">
+                  <th mat-header-cell *matHeaderCellDef>Nombre</th>
+                  <td mat-cell *matCellDef="let c">{{ c.name }}</td>
+                </ng-container>
+                <ng-container matColumnDef="emailDomain">
+                  <th mat-header-cell *matHeaderCellDef>Dominio</th>
+                  <td mat-cell *matCellDef="let c">{{ c.emailDomain || '—' }}</td>
+                </ng-container>
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef>Estado</th>
+                  <td mat-cell *matCellDef="let c"><app-status-chip [status]="c.status" /></td>
+                </ng-container>
+                <ng-container matColumnDef="actions">
+                  <th mat-header-cell *matHeaderCellDef></th>
+                  <td mat-cell *matCellDef="let c" style="text-align:right">
+                    @if (c.status === 'ACTIVE') {
+                      <button mat-icon-button (click)="toggleStatus(c)" aria-label="Suspender"><mat-icon>block</mat-icon></button>
+                    } @else {
+                      <button mat-icon-button (click)="toggleStatus(c)" aria-label="Activar"><mat-icon>check_circle</mat-icon></button>
+                    }
+                    <button mat-icon-button (click)="startEdit(c)" aria-label="Editar"><mat-icon>chevron_right</mat-icon></button>
+                  </td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="columns"></tr>
+                <tr mat-row *matRowDef="let row; columns: columns"
+                    (click)="startEdit(row)"
+                    [style.background]="row.id === editingId() ? 'var(--brand-soft)' : ''"
+                    style="cursor:pointer"></tr>
+              </table>
+            </div>
+
+            @if (!loading() && companies().length === 0) {
+              <app-empty-state icon="business" message="No hay empresas para mostrar." />
+            }
+
+            <mat-paginator
+              [length]="total()"
+              [pageSize]="size()"
+              [pageIndex]="page()"
+              [pageSizeOptions]="[10, 20, 50]"
+              (page)="onPage($event)"
+            />
+          </mat-card-content>
+        </mat-card>
+      </div>
+
+      @if (showForm()) {
+        <aside class="split-drawer">
+          <div class="drawer-header">
+            <div class="titles">
+              <h3>{{ editingId() ? 'Editar empresa' : 'Nueva empresa' }}</h3>
+              @if (editingId()) { <p class="sub">Código {{ form.controls.code.value }}</p> }
+            </div>
+            <button mat-icon-button (click)="cancelForm()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+          </div>
+          <div class="drawer-body">
+            <form [formGroup]="form" style="display:flex;flex-direction:column">
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Código</mat-label>
+                <input matInput formControlName="code" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Nombre</mat-label>
+                <input matInput formControlName="name" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Razón social</mat-label>
+                <input matInput formControlName="legalName" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Dominio de correo</mat-label>
+                <input matInput formControlName="emailDomain" placeholder="empresa.com" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Zona horaria</mat-label>
+                <input matInput formControlName="timezone" placeholder="America/Lima" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Idioma</mat-label>
+                <input matInput formControlName="locale" placeholder="es" />
+              </mat-form-field>
+            </form>
+          </div>
+          <div class="drawer-actions">
+            <button mat-button (click)="cancelForm()">Cancelar</button>
+            <button mat-flat-button color="primary" [disabled]="form.invalid || loading()" (click)="save()">
               {{ editingId() ? 'Guardar' : 'Crear' }}
             </button>
-            <button mat-button type="button" (click)="cancelForm()">Cancelar</button>
-          </form>
-        </mat-card-content>
-      </mat-card>
-    }
-
-    <mat-card>
-      <mat-card-content>
-        <form (ngSubmit)="applySearch()" style="display:flex;gap:12px;align-items:baseline">
-          <mat-form-field appearance="outline" style="flex:1 1 320px">
-            <mat-label>Buscar</mat-label>
-            <input matInput [formControl]="searchControl" placeholder="código o nombre" />
-          </mat-form-field>
-          <button mat-stroked-button type="submit">Buscar</button>
-        </form>
-
-        @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
-        @if (error()) { <p class="error-text">{{ error() }}</p> }
-
-        <table mat-table [dataSource]="companies()" style="width:100%">
-          <ng-container matColumnDef="code">
-            <th mat-header-cell *matHeaderCellDef>Código</th>
-            <td mat-cell *matCellDef="let c">{{ c.code }}</td>
-          </ng-container>
-          <ng-container matColumnDef="name">
-            <th mat-header-cell *matHeaderCellDef>Nombre</th>
-            <td mat-cell *matCellDef="let c">{{ c.name }}</td>
-          </ng-container>
-          <ng-container matColumnDef="status">
-            <th mat-header-cell *matHeaderCellDef>Estado</th>
-            <td mat-cell *matCellDef="let c"><app-status-chip [status]="c.status" /></td>
-          </ng-container>
-          <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef></th>
-            <td mat-cell *matCellDef="let c" style="text-align:right">
-              <button mat-icon-button (click)="startEdit(c)" aria-label="Editar"><mat-icon>edit</mat-icon></button>
-              @if (c.status === 'ACTIVE') {
-                <button mat-icon-button (click)="toggleStatus(c)" aria-label="Suspender"><mat-icon>block</mat-icon></button>
-              } @else {
-                <button mat-icon-button (click)="toggleStatus(c)" aria-label="Activar"><mat-icon>check_circle</mat-icon></button>
-              }
-            </td>
-          </ng-container>
-          <tr mat-header-row *matHeaderRowDef="columns"></tr>
-          <tr mat-row *matRowDef="let row; columns: columns"></tr>
-        </table>
-
-        @if (!loading() && companies().length === 0) {
-          <app-empty-state icon="business" message="No hay empresas para mostrar." />
-        }
-
-        <mat-paginator
-          [length]="total()"
-          [pageSize]="size()"
-          [pageIndex]="page()"
-          [pageSizeOptions]="[10, 20, 50]"
-          (page)="onPage($event)"
-        />
-      </mat-card-content>
-    </mat-card>
+          </div>
+        </aside>
+      }
+    </div>
   `,
 })
 export class CompaniesComponent {
@@ -146,7 +166,7 @@ export class CompaniesComponent {
   private readonly notify = inject(NotificationService);
   private readonly dialog = inject(MatDialog);
 
-  protected readonly columns = ['code', 'name', 'status', 'actions'];
+  protected readonly columns = ['code', 'name', 'emailDomain', 'status', 'actions'];
   protected readonly companies = signal<Company[]>([]);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);

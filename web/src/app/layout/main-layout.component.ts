@@ -134,22 +134,19 @@ import { ThemeService } from '../core/theme/theme.service';
                 <span matListItemTitle>Mapa en tiempo real</span>
               </a>
             }
-            <a mat-list-item class="nav-item" routerLink="/notifications" routerLinkActive="active">
-              <mat-icon matListItemIcon>notifications</mat-icon>
-              <span matListItemTitle>Notificaciones</span>
-            </a>
 
-            @if (can('incident:approve') || can('report:export') || can('audit:read')) {
-              <div class="nav-group">Supervisión</div>
-              @if (can('incident:approve')) {
-                <a mat-list-item class="nav-item" routerLink="/incidents" routerLinkActive="active">
-                  <mat-icon matListItemIcon>report_problem</mat-icon>
-                  <span matListItemTitle>Incidencias</span>
-                </a>
-              }
+            @if (can('incident:approve')) {
+              <a mat-list-item class="nav-item" routerLink="/incidents" routerLinkActive="active">
+                <mat-icon matListItemIcon>report_problem</mat-icon>
+                <span matListItemTitle>Incidencias</span>
+              </a>
+            }
+
+            @if (can('report:export') || can('audit:read')) {
+              <div class="nav-group">Análisis</div>
               @if (can('report:export')) {
                 <a mat-list-item class="nav-item" routerLink="/reports" routerLinkActive="active">
-                  <mat-icon matListItemIcon>download</mat-icon>
+                  <mat-icon matListItemIcon>bar_chart</mat-icon>
                   <span matListItemTitle>Reportes</span>
                 </a>
               }
@@ -161,18 +158,18 @@ import { ThemeService } from '../core/theme/theme.service';
               }
             }
 
-            @if (hasAdmin()) {
-              <div class="nav-group">Administración</div>
-              @if (can('company:manage')) {
-                <a mat-list-item class="nav-item" routerLink="/companies" routerLinkActive="active">
-                  <mat-icon matListItemIcon>business</mat-icon>
-                  <span matListItemTitle>Empresas</span>
-                </a>
-              }
+            @if (can('user:manage') || can('company:manage') || can('worksite:manage') || can('project:manage')) {
+              <div class="nav-group">Organización</div>
               @if (can('user:manage')) {
                 <a mat-list-item class="nav-item" routerLink="/users" routerLinkActive="active">
                   <mat-icon matListItemIcon>group</mat-icon>
                   <span matListItemTitle>Usuarios</span>
+                </a>
+              }
+              @if (can('company:manage')) {
+                <a mat-list-item class="nav-item" routerLink="/companies" routerLinkActive="active">
+                  <mat-icon matListItemIcon>business</mat-icon>
+                  <span matListItemTitle>Empresas</span>
                 </a>
               }
               @if (can('worksite:manage')) {
@@ -187,17 +184,25 @@ import { ThemeService } from '../core/theme/theme.service';
                   <span matListItemTitle>Proyectos</span>
                 </a>
               }
-              @if (can('schedule:manage')) {
-                <a mat-list-item class="nav-item" routerLink="/scheduling" routerLinkActive="active">
-                  <mat-icon matListItemIcon>event</mat-icon>
-                  <span matListItemTitle>Horarios y turnos</span>
-                </a>
-                <a mat-list-item class="nav-item" routerLink="/event-types" routerLinkActive="active">
-                  <mat-icon matListItemIcon>tune</mat-icon>
-                  <span matListItemTitle>Tipos de evento</span>
-                </a>
-              }
             }
+
+            @if (can('schedule:manage')) {
+              <div class="nav-group">Planificación</div>
+              <a mat-list-item class="nav-item" routerLink="/scheduling" routerLinkActive="active">
+                <mat-icon matListItemIcon>event</mat-icon>
+                <span matListItemTitle>Horarios y turnos</span>
+              </a>
+              <a mat-list-item class="nav-item" routerLink="/event-types" routerLinkActive="active">
+                <mat-icon matListItemIcon>tune</mat-icon>
+                <span matListItemTitle>Tipos de evento</span>
+              </a>
+            }
+
+            <div class="nav-group">Cuenta</div>
+            <a mat-list-item class="nav-item" routerLink="/notifications" routerLinkActive="active">
+              <mat-icon matListItemIcon>notifications</mat-icon>
+              <span matListItemTitle>Notificaciones</span>
+            </a>
           </mat-nav-list>
         </mat-sidenav>
 

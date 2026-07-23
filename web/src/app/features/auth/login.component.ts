@@ -26,44 +26,53 @@ import { AuthService } from '../../core/auth/auth.service';
       .auth { display: flex; min-height: 100vh; }
       .hero {
         flex: 1 1 0;
-        background: linear-gradient(150deg, #3949ab 0%, #283593 55%, #1a237e 100%);
+        background: linear-gradient(155deg, #3949ab 0%, #2c3690 55%, #1a2158 100%);
         color: #fff;
-        padding: 56px;
+        padding: var(--sp-6);
         display: flex;
         flex-direction: column;
         justify-content: space-between;
         position: relative;
         overflow: hidden;
       }
+      .hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+        background-size: 22px 22px;
+        opacity: 0.5;
+      }
       .hero::after {
         content: '';
         position: absolute;
-        right: -120px;
-        bottom: -120px;
+        right: -140px;
+        bottom: -140px;
         width: 360px;
         height: 360px;
         border-radius: 50%;
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.06);
       }
-      .hero .brand { display: flex; align-items: center; gap: 12px; }
-      .hero .logo { width: 42px; height: 42px; }
-      .hero h1 { font-size: 2.4rem; margin: 0 0 12px; line-height: 1.1; }
-      .hero p { font-size: 1.05rem; opacity: 0.85; max-width: 460px; }
-      .hero .foot { font-size: 0.8rem; opacity: 0.7; }
-      .features { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
-      .features div { display: flex; align-items: center; gap: 10px; opacity: 0.92; }
+      .hero .brand { display: flex; align-items: center; gap: 12px; position: relative; }
+      .hero .logo { width: 40px; height: 40px; flex: 0 0 auto; }
+      .hero h1 { font-size: 2.2rem; margin: 0 0 12px; line-height: 1.15; font-weight: 700; letter-spacing: -0.01em; position: relative; }
+      .hero p { font-size: var(--font-section-title); opacity: 0.82; max-width: 440px; position: relative; }
+      .hero .foot { font-size: var(--font-small); opacity: 0.65; position: relative; }
+      .features { display: flex; flex-direction: column; gap: var(--sp-3); margin-top: var(--sp-5); position: relative; }
+      .features div { display: flex; align-items: center; gap: var(--sp-3); opacity: 0.94; font-size: var(--font-body); }
+      .features mat-icon { flex: 0 0 auto; opacity: 0.85; }
 
       .panel {
-        flex: 0 0 clamp(360px, 40%, 520px);
+        flex: 0 0 clamp(380px, 40%, 520px);
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 32px;
+        padding: var(--sp-6);
         background: var(--surface);
       }
       .card { width: 100%; max-width: 360px; }
-      .card h2 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 700; }
-      .card .sub { color: var(--text-muted); margin: 0 0 24px; }
+      .card h2 { margin: 0 0 4px; font-size: var(--font-section-title); font-weight: 700; }
+      .card .sub { color: var(--text-muted); margin: 0 0 var(--sp-5); font-size: var(--font-body); }
 
       @media (max-width: 900px) {
         .hero { display: none; }

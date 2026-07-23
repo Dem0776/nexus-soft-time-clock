@@ -35,7 +35,7 @@ import { GeofenceService } from './geofence.service';
     PageHeaderComponent,
   ],
   template: `
-    <app-page-header title="Geocerca y QR del centro">
+    <app-page-header title="Geocerca y QR del centro" subtitle="Define el radio permitido y genera el QR de acceso">
       <a mat-stroked-button routerLink="/work-sites"><mat-icon>arrow_back</mat-icon> Volver</a>
     </app-page-header>
 
@@ -177,8 +177,8 @@ export class GeofenceComponent implements AfterViewInit, OnDestroy {
     const { latitude, longitude, radiusM } = this.form.getRawValue();
     const center: L.LatLngExpression = [latitude, longitude];
     if (!this.centerMarker) {
-      this.centerMarker = L.circleMarker(center, { radius: 6, color: '#1565c0' }).addTo(this.map);
-      this.radiusCircle = L.circle(center, { radius: radiusM, color: '#1565c0', fillOpacity: 0.1 }).addTo(this.map);
+      this.centerMarker = L.circleMarker(center, { radius: 6, color: '#3949ab' }).addTo(this.map);
+      this.radiusCircle = L.circle(center, { radius: radiusM, color: '#3949ab', fillOpacity: 0.1 }).addTo(this.map);
     } else {
       this.centerMarker.setLatLng(center);
       this.radiusCircle?.setLatLng(center);
