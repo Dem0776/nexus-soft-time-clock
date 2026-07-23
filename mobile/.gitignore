@@ -12,3 +12,8 @@ lib/l10n/app_localizations*.dart
 .vscode/
 ios/Pods/
 android/.gradle/
+
+# Firma de release (NO commitear)
+android/key.properties
+**/*.jks
+**/*.keystore

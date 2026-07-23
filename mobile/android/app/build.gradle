@@ -26,6 +26,13 @@ if (flutterVersionName == null) {
     flutterVersionName = "1.0"
 }
 
+// Carga la configuración de firma de release desde key.properties (fuera de VCS).
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.condor.nexussoft.timeclock"
     compileSdk = flutter.compileSdkVersion
@@ -43,18 +50,26 @@ android {
     defaultConfig {
         applicationId = "com.condor.nexussoft.timeclock"
         // minSdk 23: requerido por biometría (BiometricPrompt), Firebase y mobile_scanner.
-        minSdk = 23
+        minSdkVersion = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
         multiDexEnabled = true
     }
 
+    signingConfigs {
+        release {
+            keyAlias = keystoreProperties['keyAlias']
+            keyPassword = keystoreProperties['keyPassword']
+            storeFile = keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword = keystoreProperties['storePassword']
+        }
+    }
+
     buildTypes {
         release {
-            // Firma de depuración para permitir `flutter run --release` sin configurar keystore.
-            // Reemplaza por tu signingConfig de release antes de publicar.
-            signingConfig = signingConfigs.debug
+            // Firma de release con la upload key definida en key.properties.
+            signingConfig = signingConfigs.release
         }
     }
 }
