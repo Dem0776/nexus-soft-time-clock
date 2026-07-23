@@ -16,6 +16,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { ConfirmDialogComponent } from '../../../core/ui/confirm-dialog.component';
 import { EmptyStateComponent } from '../../../core/ui/empty-state.component';
+import { MapPickerDialogComponent, MapPickerResult } from '../../../core/ui/map-picker-dialog.component';
 import { NotificationService } from '../../../core/ui/notification.service';
 import { PageHeaderComponent } from '../../../core/ui/page-header.component';
 import { StatusChipComponent } from '../../../core/ui/status-chip.component';
@@ -73,12 +74,15 @@ import { WorkSiteService } from './work-site.service';
             </mat-form-field>
             <mat-form-field appearance="outline" style="width:130px">
               <mat-label>Latitud</mat-label>
-              <input matInput type="number" step="any" formControlName="latitude" />
+              <input matInput type="number" step="any" formControlName="latitude" readonly />
             </mat-form-field>
             <mat-form-field appearance="outline" style="width:130px">
               <mat-label>Longitud</mat-label>
-              <input matInput type="number" step="any" formControlName="longitude" />
+              <input matInput type="number" step="any" formControlName="longitude" readonly />
             </mat-form-field>
+            <button mat-stroked-button type="button" (click)="pickLocation()" style="align-self:center">
+              <mat-icon>place</mat-icon> Seleccionar en el mapa
+            </button>
             <mat-form-field appearance="outline" style="width:160px">
               <mat-label>Zona horaria</mat-label>
               <input matInput formControlName="timezone" placeholder="America/Lima" />
@@ -230,6 +234,22 @@ export class WorkSitesComponent {
     });
     this.form.controls.code.disable(); // el código es inmutable
     this.showForm.set(true);
+  }
+
+  protected pickLocation(): void {
+    const { latitude, longitude } = this.form.getRawValue();
+    this.dialog
+      .open(MapPickerDialogComponent, {
+        width: '640px',
+        data: { latitude, longitude },
+      })
+      .afterClosed()
+      .subscribe((result: MapPickerResult | undefined) => {
+        if (result) {
+          this.form.patchValue({ latitude: result.latitude, longitude: result.longitude });
+          this.form.markAsDirty();
+        }
+      });
   }
 
   protected cancelForm(): void {
