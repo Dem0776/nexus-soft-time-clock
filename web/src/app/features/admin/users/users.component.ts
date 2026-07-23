@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -12,12 +12,11 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 
-import { AuthStore } from '../../../core/auth/auth.store';
 import { EmptyStateComponent } from '../../../core/ui/empty-state.component';
 import { NotificationService } from '../../../core/ui/notification.service';
 import { PageHeaderComponent } from '../../../core/ui/page-header.component';
 import { StatusChipComponent } from '../../../core/ui/status-chip.component';
-import { ROLE_RANK, Role, rankOf } from '../roles/role.models';
+import { Role } from '../roles/role.models';
 import { RoleService } from '../roles/role.service';
 import { AssignRolesDialogComponent } from './assign-roles-dialog.component';
 import { USER_STATUSES, User, UserStatus } from './user.models';
@@ -160,7 +159,6 @@ export class UsersComponent {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(UserService);
   private readonly roleService = inject(RoleService);
-  private readonly store = inject(AuthStore);
   private readonly notify = inject(NotificationService);
   private readonly dialog = inject(MatDialog);
 
@@ -175,20 +173,13 @@ export class UsersComponent {
   protected readonly size = signal(20);
   protected readonly total = signal(0);
 
-  private readonly allRoles = signal<Role[]>([]);
   /**
-   * Roles que el operador puede otorgar (espejo de RoleGrantPolicy en el backend, HU-21 CA1):
-   * todos si es SUPER_ADMIN (platformAdmin), o solo los de rango estrictamente inferior al suyo —
-   * así no delega un privilegio mayor o igual al propio. El backend lo impone realmente.
+   * Roles que el operador puede otorgar (HU-21 CA1). El backend (RoleController + RoleGrantPolicy)
+   * ya filtra el catálogo por la potestad de delegación del solicitante, así que la UI consume ese
+   * listado tal cual: no se re-deriva la jerarquía en el cliente (evita vaciar el dropdown si la
+   * identidad /me aún no cargó o si un rol otorgable no está en un mapa de rangos local).
    */
-  protected readonly assignableRoles = computed<Role[]>(() => {
-    const user = this.store.user();
-    if (user?.platformAdmin) {
-      return this.allRoles();
-    }
-    const callerMax = Math.max(0, ...(user?.roles ?? []).map((c) => ROLE_RANK[c] ?? 0));
-    return this.allRoles().filter((r) => rankOf(r.code) < callerMax);
-  });
+  protected readonly assignableRoles = signal<Role[]>([]);
 
   protected readonly searchControl = this.fb.nonNullable.control('');
 
@@ -203,7 +194,7 @@ export class UsersComponent {
 
   constructor() {
     this.roleService.list().subscribe({
-      next: (roles) => this.allRoles.set(roles),
+      next: (roles) => this.assignableRoles.set(roles),
       error: () => void 0,
     });
     this.reload();
