@@ -1,22 +1,47 @@
-import { HttpResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSelectModule } from '@angular/material/select';
+import { debounceTime, distinctUntilChanged } from 'rxjs';
 
+import { EmptyStateComponent } from '../../core/ui/empty-state.component';
 import { NotificationService } from '../../core/ui/notification.service';
 import { PageHeaderComponent } from '../../core/ui/page-header.component';
+import { exportToExcel, exportToPdf } from './report-export.util';
+import { generateMockReport } from './report.mock';
+import {
+  AttendanceReport,
+  NumericColumn,
+  ReportFilters,
+  SortColumn,
+  SortState,
+  countActiveFilters,
+  defaultFilters,
+} from './report.models';
 import { ReportService } from './report.service';
+import { ReportFiltersComponent } from './reports-filters.component';
+import { ReportTableComponent } from './reports-table.component';
 
-/** Reportes de asistencia (RF-11): filtros avanzados y exportación a CSV/Excel/PDF. */
+const NUMERIC_COLUMNS: readonly NumericColumn[] = [
+  'expectedDays', 'attendedDays', 'justifiedAbsences', 'unjustifiedAbsences',
+  'lateArrivals', 'workedHours', 'overtimeHours', 'totalHours', 'compliancePercentage',
+];
+
+/**
+ * Reporte de asistencia por colaborador (RF-11). Carga el agregado del backend para un rango de
+ * fechas y aplica búsqueda, filtros combinables, ordenamiento y paginación en el cliente. Exporta a
+ * Excel/PDF respetando los filtros activos. Si el backend no responde, muestra datos de demostración.
+ */
 @Component({
   selector: 'app-reports',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
     MatCardModule,
@@ -24,102 +49,365 @@ import { ReportService } from './report.service';
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
-    MatSelectModule,
     MatProgressBarModule,
+    MatPaginatorModule,
     PageHeaderComponent,
+    EmptyStateComponent,
+    ReportFiltersComponent,
+    ReportTableComponent,
   ],
   template: `
-    <app-page-header title="Reportes de asistencia" />
+    <app-page-header title="Reporte de asistencia" subtitle="Resumen por colaborador con filtros y exportación" />
+
     <mat-card>
       <mat-card-content>
-        <p class="muted">Filtrá y exportá el reporte de asistencia. La descarga inicia automáticamente.</p>
-        <form [formGroup]="form" (ngSubmit)="download()" style="display:flex;gap:12px;flex-wrap:wrap;align-items:baseline">
-          <mat-form-field appearance="outline" style="width:170px">
-            <mat-label>Desde</mat-label>
-            <input matInput type="date" formControlName="from" />
+        <!-- Barra superior de acciones -->
+        <div class="toolbar" [formGroup]="form">
+          <mat-form-field appearance="outline" class="search">
+            <mat-icon matPrefix>search</mat-icon>
+            <mat-label>Buscar (nombre, número o centro)</mat-label>
+            <input matInput formControlName="search" autocomplete="off" />
           </mat-form-field>
-          <mat-form-field appearance="outline" style="width:170px">
-            <mat-label>Hasta</mat-label>
-            <input matInput type="date" formControlName="to" />
-          </mat-form-field>
-          <mat-form-field appearance="outline" style="width:200px">
-            <mat-label>Estado</mat-label>
-            <mat-select formControlName="status">
-              <mat-option [value]="''">Todos</mat-option>
-              <mat-option value="ACCEPTED">Aceptados</mat-option>
-              <mat-option value="REJECTED">Rechazados</mat-option>
-            </mat-select>
-          </mat-form-field>
-          <mat-form-field appearance="outline" style="width:150px">
-            <mat-label>Formato</mat-label>
-            <mat-select formControlName="format">
-              <mat-option value="csv">CSV</mat-option>
-              <mat-option value="xlsx">Excel</mat-option>
-              <mat-option value="pdf">PDF</mat-option>
-            </mat-select>
-          </mat-form-field>
-          <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
-            <mat-icon>download</mat-icon> Exportar
-          </button>
-        </form>
-        @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+
+          <div class="dates">
+            <mat-form-field appearance="outline" class="date">
+              <mat-label>Desde</mat-label>
+              <input matInput type="date" formControlName="from" />
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="date">
+              <mat-label>Hasta</mat-label>
+              <input matInput type="date" formControlName="to" />
+            </mat-form-field>
+          </div>
+
+          <span class="spacer"></span>
+
+          <div class="toolbar-actions">
+            <button mat-stroked-button type="button" (click)="clearFilters()" [disabled]="activeFilters() === 0">
+              <mat-icon>filter_alt_off</mat-icon> Limpiar filtros
+            </button>
+            <button mat-stroked-button type="button" (click)="export('excel')" [disabled]="filtered().length === 0">
+              <mat-icon>grid_on</mat-icon> Excel
+            </button>
+            <button mat-stroked-button type="button" (click)="export('pdf')" [disabled]="filtered().length === 0">
+              <mat-icon>picture_as_pdf</mat-icon> PDF
+            </button>
+          </div>
+        </div>
+
+        <!-- Indicadores -->
+        <div class="indicators">
+          <span class="count">
+            <strong>{{ filtered().length }}</strong>
+            @if (filtered().length !== total()) { <span class="muted">de {{ total() }}</span> }
+            registro{{ filtered().length === 1 ? '' : 's' }}
+          </span>
+          @if (activeFilters() > 0) {
+            <span class="active-filters">
+              <mat-icon>tune</mat-icon> {{ activeFilters() }} filtro{{ activeFilters() === 1 ? '' : 's' }} activo{{ activeFilters() === 1 ? '' : 's' }}
+            </span>
+          }
+          @if (demo()) {
+            <span class="demo-badge" title="Sin conexión al backend: se muestran datos de demostración.">
+              <mat-icon>science</mat-icon> Datos de demostración
+            </span>
+          }
+        </div>
+
+        <app-report-filters [form]="filtersForm" [activeCount]="activeFilters()" />
+
+        @if (loading()) { <mat-progress-bar mode="indeterminate" class="loader-bar" /> }
+
+        <!-- Estados: carga (skeleton), error, vacío, o tabla -->
+        @if (loading()) {
+          <div class="skeleton">
+            @for (r of skeletonRows; track r) {
+              <div class="skeleton-row"></div>
+            }
+          </div>
+        } @else if (error()) {
+          <div class="error-block">
+            <mat-icon>cloud_off</mat-icon>
+            <p>{{ error() }}</p>
+            <button mat-flat-button color="primary" (click)="reload()">
+              <mat-icon>refresh</mat-icon> Reintentar
+            </button>
+          </div>
+        } @else if (filtered().length === 0) {
+          <app-empty-state
+            icon="search_off"
+            [message]="total() === 0 ? 'No hay datos para el periodo seleccionado.' : 'Ningún colaborador coincide con los filtros aplicados.'"
+          />
+        } @else {
+          <app-report-table [rows]="paged()" [sort]="sort()" (sortChange)="onSort($event)" />
+          <mat-paginator
+            [length]="filtered().length"
+            [pageSize]="pageSize()"
+            [pageIndex]="pageIndex()"
+            [pageSizeOptions]="[25, 50, 100]"
+            (page)="onPage($event)"
+          />
+        }
       </mat-card-content>
     </mat-card>
   `,
+  styles: [
+    `
+      .toolbar {
+        display: flex;
+        gap: var(--sp-3);
+        align-items: flex-start;
+        flex-wrap: wrap;
+        margin-bottom: var(--sp-2);
+      }
+      .toolbar .search { flex: 1 1 320px; }
+      .dates { display: flex; gap: var(--sp-2); }
+      .date { width: 160px; }
+      .toolbar-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+      .spacer { flex: 1 1 auto; }
+
+      .indicators {
+        display: flex;
+        align-items: center;
+        gap: var(--sp-4);
+        margin: var(--sp-2) 0 var(--sp-3);
+        flex-wrap: wrap;
+      }
+      .count { font-size: 0.9rem; }
+      .count strong { font-size: 1.05rem; color: var(--brand); }
+      .active-filters, .demo-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 999px;
+      }
+      .active-filters { color: var(--info); background: var(--info-bg); }
+      .demo-badge { color: var(--warning); background: var(--warning-bg); }
+      .active-filters mat-icon, .demo-badge mat-icon {
+        font-size: 16px; width: 16px; height: 16px;
+      }
+      .loader-bar { margin: var(--sp-2) 0; }
+
+      .skeleton { display: flex; flex-direction: column; gap: 10px; padding: var(--sp-4) 0; }
+      .skeleton-row {
+        height: 40px;
+        border-radius: var(--radius-sm);
+        background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%);
+        background-size: 400% 100%;
+        animation: shimmer 1.4s ease infinite;
+      }
+      @keyframes shimmer {
+        0% { background-position: 100% 50%; }
+        100% { background-position: 0 50%; }
+      }
+
+      .error-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--sp-3);
+        padding: 48px 16px;
+        color: var(--text-muted);
+        text-align: center;
+      }
+      .error-block mat-icon { font-size: 44px; width: 44px; height: 44px; opacity: 0.6; }
+      .error-block p { margin: 0; max-width: 420px; }
+
+      mat-paginator { background: transparent; margin-top: var(--sp-2); }
+    `,
+  ],
 })
 export class ReportsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(ReportService);
   private readonly notify = inject(NotificationService);
 
-  protected readonly loading = signal(false);
+  protected readonly skeletonRows = Array.from({ length: 8 }, (_, i) => i);
 
-  protected readonly form = this.fb.nonNullable.group({
-    from: [''],
-    to: [''],
-    status: [''],
-    format: ['csv'],
+  /** FormGroup con todo el estado de filtros (fuente de verdad, persiste mientras viva el componente). */
+  protected readonly form: FormGroup = this.buildForm();
+  /** Subgrupo de filtros avanzados que se pasa al panel reutilizable. */
+  protected readonly filtersForm = this.form;
+
+  // --- Estado de datos ---
+  private readonly rawRows = signal<AttendanceReport[]>([]);
+  protected readonly loading = signal(false);
+  protected readonly error = signal<string | null>(null);
+  protected readonly demo = signal(false);
+
+  // --- Ordenamiento y paginación (cliente) ---
+  protected readonly sort = signal<SortState>({ column: 'employeeName', direction: 'asc' });
+  protected readonly pageIndex = signal(0);
+  protected readonly pageSize = signal(25);
+
+  /** Valor reactivo del formulario (para alimentar los pipelines de filtrado). */
+  private readonly formValue = toSignal(this.form.valueChanges, { initialValue: this.form.getRawValue() });
+
+  protected readonly total = computed(() => this.rawRows().length);
+  protected readonly activeFilters = computed(() => countActiveFilters(this.formValue() as ReportFilters));
+
+  /** Filas tras aplicar búsqueda + filtros combinables. */
+  protected readonly filtered = computed(() => {
+    const f = this.formValue() as ReportFilters;
+    return this.rawRows().filter((row) => this.matches(row, f));
   });
 
-  protected download(): void {
-    const raw = this.form.getRawValue();
-    this.loading.set(true);
-    this.service
-      .attendance({
-        from: raw.from ? `${raw.from}T00:00:00Z` : undefined,
-        to: raw.to ? `${raw.to}T23:59:59Z` : undefined,
-        status: raw.status || undefined,
-        format: raw.format as 'csv' | 'xlsx' | 'pdf',
-      })
-      .subscribe({
-        next: (response) => {
-          this.saveFile(response);
-          this.loading.set(false);
-        },
-        error: () => {
-          this.loading.set(false);
-          this.notify.error('No se pudo generar el reporte (¿permiso report:export?).');
-        },
-      });
+  /** Filas filtradas y ordenadas. */
+  protected readonly sorted = computed(() => {
+    const s = this.sort();
+    const rows = [...this.filtered()];
+    rows.sort((a, b) => this.compare(a, b, s));
+    return rows;
+  });
+
+  /** Página actual del conjunto ordenado (clamp defensivo si el filtro redujo el total). */
+  protected readonly paged = computed(() => {
+    const size = this.pageSize();
+    const rows = this.sorted();
+    let start = this.pageIndex() * size;
+    if (start >= rows.length) {
+      start = 0;
+    }
+    return rows.slice(start, start + size);
+  });
+
+  constructor() {
+    // Recarga desde el backend cuando cambia el rango de fechas (debounced).
+    const from$ = this.form.get('from')!.valueChanges;
+    const to$ = this.form.get('to')!.valueChanges;
+    from$.pipe(debounceTime(400), distinctUntilChanged(), takeUntilDestroyed()).subscribe(() => this.reload());
+    to$.pipe(debounceTime(400), distinctUntilChanged(), takeUntilDestroyed()).subscribe(() => this.reload());
+
+    // Vuelve a la primera página cuando cambian los filtros (evita quedar en una página vacía).
+    this.form.valueChanges.pipe(debounceTime(150), takeUntilDestroyed()).subscribe(() => this.pageIndex.set(0));
+
+    this.reload();
   }
 
-  private saveFile(response: HttpResponse<Blob>): void {
-    const body = response.body;
-    if (!body) {
+  /** (Re)carga el reporte para el rango de fechas actual. */
+  protected reload(): void {
+    const { from, to } = this.form.getRawValue() as ReportFilters;
+    this.loading.set(true);
+    this.error.set(null);
+    this.service.summary(from, to).subscribe({
+      next: (rows) => {
+        this.rawRows.set(rows);
+        this.demo.set(false);
+        this.loading.set(false);
+      },
+      error: () => {
+        // Modo demostración: sin backend, se usan datos mock para poder evaluar la pantalla.
+        this.rawRows.set(generateMockReport());
+        this.demo.set(true);
+        this.loading.set(false);
+        this.notify.error('No se pudo cargar el reporte; se muestran datos de demostración.');
+      },
+    });
+  }
+
+  protected onSort(column: SortColumn): void {
+    const current = this.sort();
+    if (current.column === column) {
+      this.sort.set({ column, direction: current.direction === 'asc' ? 'desc' : 'asc' });
+    } else {
+      this.sort.set({ column, direction: 'asc' });
+    }
+  }
+
+  protected onPage(event: PageEvent): void {
+    this.pageIndex.set(event.pageIndex);
+    this.pageSize.set(event.pageSize);
+  }
+
+  /** Limpia búsqueda y filtros avanzados, conservando el rango de fechas seleccionado. */
+  protected clearFilters(): void {
+    const defaults = defaultFilters();
+    const current = this.form.getRawValue() as ReportFilters;
+    this.form.reset({ ...defaults, from: current.from, to: current.to }, { emitEvent: true });
+    this.pageIndex.set(0);
+  }
+
+  protected export(kind: 'excel' | 'pdf'): void {
+    const rows = this.sorted();
+    if (rows.length === 0) {
       return;
     }
-    const filename = this.filenameFrom(response) ?? `asistencia.${this.form.getRawValue().format}`;
-    const url = URL.createObjectURL(body);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
+    const { from, to } = this.form.getRawValue() as ReportFilters;
+    if (kind === 'excel') {
+      exportToExcel(rows);
+    } else {
+      exportToPdf(rows, { from, to });
+    }
   }
 
-  private filenameFrom(response: HttpResponse<Blob>): string | null {
-    const disposition = response.headers.get('content-disposition');
-    const match = disposition?.match(/filename="?([^"]+)"?/i);
-    return match ? match[1] : null;
+  // --- Lógica de filtrado / orden ---
+
+  private matches(row: AttendanceReport, f: ReportFilters): boolean {
+    const search = f.search.trim().toLowerCase();
+    if (search) {
+      const haystack = `${row.employeeNumber} ${row.employeeName} ${row.workCenter}`.toLowerCase();
+      if (!haystack.includes(search)) {
+        return false;
+      }
+    }
+    if (!this.textMatch(row.employeeNumber, f.employeeNumber)) return false;
+    if (!this.textMatch(row.employeeName, f.employeeName)) return false;
+    if (!this.textMatch(row.workCenter, f.workCenter)) return false;
+
+    if (f.status === 'ACTIVE' && !row.active) return false;
+    if (f.status === 'INACTIVE' && row.active) return false;
+
+    for (const col of NUMERIC_COLUMNS) {
+      const range = f.ranges[col];
+      const value = row[col];
+      if (range.min !== null && range.min !== undefined && value < range.min) return false;
+      if (range.max !== null && range.max !== undefined && value > range.max) return false;
+    }
+    return true;
+  }
+
+  private textMatch(value: string, filter: string): boolean {
+    const q = filter?.trim().toLowerCase();
+    return !q || value.toLowerCase().includes(q);
+  }
+
+  private compare(a: AttendanceReport, b: AttendanceReport, s: SortState): number {
+    const dir = s.direction === 'asc' ? 1 : -1;
+    const av = a[s.column];
+    const bv = b[s.column];
+    if (typeof av === 'number' && typeof bv === 'number') {
+      return (av - bv) * dir;
+    }
+    return String(av).localeCompare(String(bv), 'es', { numeric: true }) * dir;
+  }
+
+  private buildForm(): FormGroup {
+    const d = defaultFilters();
+    const rangeGroup = (): FormGroup =>
+      this.fb.group({ min: this.fb.control<number | null>(null), max: this.fb.control<number | null>(null) });
+
+    return this.fb.group({
+      from: this.fb.nonNullable.control(d.from),
+      to: this.fb.nonNullable.control(d.to),
+      search: this.fb.nonNullable.control(d.search),
+      employeeNumber: this.fb.nonNullable.control(d.employeeNumber),
+      employeeName: this.fb.nonNullable.control(d.employeeName),
+      workCenter: this.fb.nonNullable.control(d.workCenter),
+      status: this.fb.nonNullable.control(d.status),
+      ranges: this.fb.group({
+        expectedDays: rangeGroup(),
+        attendedDays: rangeGroup(),
+        justifiedAbsences: rangeGroup(),
+        unjustifiedAbsences: rangeGroup(),
+        lateArrivals: rangeGroup(),
+        workedHours: rangeGroup(),
+        overtimeHours: rangeGroup(),
+        totalHours: rangeGroup(),
+        compliancePercentage: rangeGroup(),
+      }),
+    });
   }
 }

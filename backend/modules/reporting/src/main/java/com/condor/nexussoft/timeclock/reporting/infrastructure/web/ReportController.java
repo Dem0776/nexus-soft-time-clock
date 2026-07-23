@@ -2,6 +2,8 @@ package com.condor.nexussoft.timeclock.reporting.infrastructure.web;
 
 import com.condor.nexussoft.timeclock.platform.tenant.TenantContext;
 import com.condor.nexussoft.timeclock.reporting.application.AttendanceReportService;
+import com.condor.nexussoft.timeclock.reporting.application.AttendanceSummaryRow;
+import com.condor.nexussoft.timeclock.reporting.application.AttendanceSummaryService;
 import com.condor.nexussoft.timeclock.reporting.application.ReportRow;
 import com.condor.nexussoft.timeclock.reporting.infrastructure.export.CsvExporter;
 import com.condor.nexussoft.timeclock.reporting.infrastructure.export.ExcelExporter;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -26,12 +29,15 @@ import java.util.List;
 public class ReportController {
 
     private final AttendanceReportService report;
+    private final AttendanceSummaryService summary;
     private final CsvExporter csv;
     private final ExcelExporter excel;
     private final PdfExporter pdf;
 
-    public ReportController(AttendanceReportService report, CsvExporter csv, ExcelExporter excel, PdfExporter pdf) {
+    public ReportController(AttendanceReportService report, AttendanceSummaryService summary,
+                            CsvExporter csv, ExcelExporter excel, PdfExporter pdf) {
         this.report = report;
+        this.summary = summary;
         this.csv = csv;
         this.excel = excel;
         this.pdf = pdf;
@@ -54,6 +60,20 @@ public class ReportController {
             case "pdf" -> download(pdf.export(rows), "asistencia.pdf", MediaType.APPLICATION_PDF);
             default -> download(csv.export(rows), "asistencia.csv", MediaType.parseMediaType("text/csv"));
         };
+    }
+
+    /**
+     * Reporte agregado por colaborador (JSON). La pantalla web filtra/ordena/exporta en el cliente;
+     * {@code from}/{@code to} son fechas {@code yyyy-MM-dd} (por defecto, últimos 30 días).
+     */
+    @GetMapping("/attendance-summary")
+    public List<AttendanceSummaryRow> attendanceSummary(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+
+        LocalDate toDate = to != null && !to.isBlank() ? LocalDate.parse(to) : LocalDate.now();
+        LocalDate fromDate = from != null && !from.isBlank() ? LocalDate.parse(from) : toDate.minusDays(29);
+        return summary.summary(TenantContext.require(), fromDate, toDate);
     }
 
     private ResponseEntity<byte[]> download(byte[] body, String filename, MediaType type) {
