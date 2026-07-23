@@ -37,3 +37,4 @@ mobile/**/*.freezed.dart
 *.iml
 .DS_Store
 Thumbs.db
+mocks/
