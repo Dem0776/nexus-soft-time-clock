@@ -35,7 +35,14 @@ import { ThemeService } from '../core/theme/theme.service';
     `
       .layout { display: flex; flex-direction: column; height: 100vh; }
       .content { padding: 24px; }
-      .brand-word { font-weight: 700; letter-spacing: -0.01em; }
+      .brand-word { font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+
+      mat-toolbar {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+        border-bottom: 1px solid var(--border);
+      }
+      mat-toolbar mat-icon { color: var(--text-muted); }
 
       mat-sidenav { width: 264px; }
       .brand {
@@ -79,7 +86,7 @@ import { ThemeService } from '../core/theme/theme.service';
   ],
   template: `
     <div class="layout">
-      <mat-toolbar color="primary">
+      <mat-toolbar>
         <button mat-icon-button (click)="drawer.toggle()" aria-label="Menú">
           <mat-icon>menu</mat-icon>
         </button>
