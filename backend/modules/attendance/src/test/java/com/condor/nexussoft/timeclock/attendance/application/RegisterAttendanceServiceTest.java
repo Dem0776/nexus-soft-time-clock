@@ -96,7 +96,7 @@ class RegisterAttendanceServiceTest {
                 .thenReturn(new FraudCheckPort.FraudCheckResult(List.of(), false, null));
         when(geofenceCheck.check(eq(tenantId), eq(siteId), anyDouble(), anyDouble()))
                 .thenReturn(new GeofenceCheckPort.GeofenceCheck(true, true, 12.0, 50.0));
-        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), any())).thenReturn(true);
+        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), eq(userId), any(), any())).thenReturn(true);
         permissiveSiteStub();
         noScheduleStub();
     }
@@ -130,7 +130,7 @@ class RegisterAttendanceServiceTest {
 
         assertThat(result.status()).isEqualTo("REJECTED");
         assertThat(result.rejectionReason()).isEqualTo("OUT_OF_GEOFENCE");
-        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any());  // no se consume nonce si ya rechazado
+        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any(), any(), any());  // no se consume nonce si ya rechazado
     }
 
     @Test
@@ -156,7 +156,7 @@ class RegisterAttendanceServiceTest {
                 .thenReturn(new FraudCheckPort.FraudCheckResult(List.of(), false, null));
         when(geofenceCheck.check(eq(tenantId), eq(siteId), anyDouble(), anyDouble()))
                 .thenReturn(new GeofenceCheckPort.GeofenceCheck(true, true, 12.0, 50.0));
-        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), any())).thenReturn(false);
+        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), eq(userId), any(), any())).thenReturn(false);
         permissiveSiteStub();
         noScheduleStub();
 
@@ -193,7 +193,7 @@ class RegisterAttendanceServiceTest {
 
         assertThat(result.status()).isEqualTo("REJECTED");
         assertThat(result.rejectionReason()).isEqualTo("INVALID_SEQUENCE");
-        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any());
+        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -201,7 +201,7 @@ class RegisterAttendanceServiceTest {
         validationsUpToSequenceStubs();
         when(attendance.findLastAcceptedEvent(tenantId, userId))
                 .thenReturn(Optional.of(new LastEvent(AttendanceEventType.ENTRADA, siteId)));
-        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), any())).thenReturn(true);
+        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), eq(userId), any(), any())).thenReturn(true);
 
         AttendanceResult result = service.register(tenantId, userId, cmd("SALIDA"));
 
@@ -243,7 +243,7 @@ class RegisterAttendanceServiceTest {
 
         assertThat(result.status()).isEqualTo("REJECTED");
         assertThat(result.rejectionReason()).isEqualTo("LOW_GPS_ACCURACY");
-        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any());
+        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -256,7 +256,7 @@ class RegisterAttendanceServiceTest {
 
         assertThat(result.status()).isEqualTo("REJECTED");
         assertThat(result.rejectionReason()).isEqualTo("PHOTO_REQUIRED");
-        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any());
+        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -291,7 +291,7 @@ class RegisterAttendanceServiceTest {
 
         assertThat(result.status()).isEqualTo("REJECTED");
         assertThat(result.rejectionReason()).isEqualTo("EVENT_TYPE_DISABLED");
-        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any());
+        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -304,6 +304,6 @@ class RegisterAttendanceServiceTest {
 
         assertThat(result.status()).isEqualTo("REJECTED");
         assertThat(result.rejectionReason()).isEqualTo("OUT_OF_SCHEDULE");
-        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any());
+        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any(), any(), any());
     }
 }

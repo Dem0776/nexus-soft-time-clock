@@ -31,8 +31,12 @@ public final class GeofencingDtos {
         }
     }
 
-    /** Vigencia del QR en minutos; {@code null} aplica la duración por defecto configurada. */
-    public record QrRequest(@Min(1) @Max(1440) Integer ttlMinutes) {
+    /**
+     * Vigencia del QR: por minutos (hasta 1440 = 24h) o por fecha exacta de expiración
+     * (para QR de días/semanas/meses). Si se envían ambos, {@code expiresAt} tiene prioridad.
+     * Si no se envía ninguno, aplica la duración por defecto configurada.
+     */
+    public record QrRequest(@Min(1) @Max(1440) Integer ttlMinutes, Instant expiresAt) {
     }
 
     public record QrResponse(String token, Instant expiresAt) {

@@ -2,6 +2,7 @@ import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, inject, sig
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -13,8 +14,10 @@ import { toDataURL } from 'qrcode';
 import { NotificationService } from '../../../../core/ui/notification.service';
 import { PageHeaderComponent } from '../../../../core/ui/page-header.component';
 import { WorkSiteService } from '../work-site.service';
-import { QrToken } from './geofence.models';
+import { QrRequest, QrToken } from './geofence.models';
 import { GeofenceService } from './geofence.service';
+
+type QrDurationMode = 'minutes' | 'date';
 
 /**
  * Geocerca circular por centro (RF-10) con selector de mapa (clic para fijar el centro),
@@ -28,6 +31,7 @@ import { GeofenceService } from './geofence.service';
     RouterLink,
     MatCardModule,
     MatButtonModule,
+    MatButtonToggleModule,
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
@@ -68,16 +72,30 @@ import { GeofenceService } from './geofence.service';
         </mat-card-content>
       </mat-card>
 
-      <mat-card style="flex:1 1 280px">
+      <mat-card style="flex:1 1 320px">
         <mat-card-header><mat-card-title>QR del centro</mat-card-title></mat-card-header>
         <mat-card-content>
           <p class="muted">El QR es un token firmado con vigencia; generarlo de nuevo rota el anterior.</p>
-          <form [formGroup]="qrForm" (ngSubmit)="generateQr()" style="display:flex;gap:12px;flex-wrap:wrap;align-items:baseline">
-            <mat-form-field appearance="outline" style="width:150px">
-              <mat-label>Vigencia (min)</mat-label>
-              <input matInput type="number" min="1" max="1440" step="1" formControlName="ttlMinutes" />
-              <mat-hint>1 a 1440 minutos</mat-hint>
-            </mat-form-field>
+          <form [formGroup]="qrForm" (ngSubmit)="generateQr()" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start">
+            <mat-button-toggle-group formControlName="mode" aria-label="Modo de vigencia">
+              <mat-button-toggle value="minutes">Minutos</mat-button-toggle>
+              <mat-button-toggle value="date">Fecha de expiración</mat-button-toggle>
+            </mat-button-toggle-group>
+
+            @if (qrForm.controls.mode.value === 'minutes') {
+              <mat-form-field appearance="outline" style="width:180px">
+                <mat-label>Vigencia (min)</mat-label>
+                <input matInput type="number" min="1" max="1440" step="1" formControlName="ttlMinutes" />
+                <mat-hint>1 a 1440 minutos (máx. 24 h)</mat-hint>
+              </mat-form-field>
+            } @else {
+              <mat-form-field appearance="outline" style="width:220px">
+                <mat-label>Expira el</mat-label>
+                <input matInput type="datetime-local" formControlName="expiresAt" />
+                <mat-hint>Para vigencias de días, semanas o meses</mat-hint>
+              </mat-form-field>
+            }
+
             <button mat-flat-button color="primary" type="submit" [disabled]="loading() || qrForm.invalid">
               <mat-icon>qr_code_2</mat-icon> Generar / rotar QR
             </button>
@@ -122,7 +140,9 @@ export class GeofenceComponent implements AfterViewInit, OnDestroy {
   });
 
   protected readonly qrForm = this.fb.nonNullable.group({
-    ttlMinutes: this.fb.nonNullable.control(2, [Validators.required, Validators.min(1), Validators.max(1440)]),
+    mode: this.fb.nonNullable.control<QrDurationMode>('minutes'),
+    ttlMinutes: this.fb.nonNullable.control(2, [Validators.min(1), Validators.max(1440)]),
+    expiresAt: this.fb.nonNullable.control(''),
   });
 
   ngAfterViewInit(): void {
@@ -208,8 +228,19 @@ export class GeofenceComponent implements AfterViewInit, OnDestroy {
     if (this.qrForm.invalid) {
       return;
     }
+    const raw = this.qrForm.getRawValue();
+    let request: QrRequest;
+    if (raw.mode === 'date') {
+      if (!raw.expiresAt) {
+        this.notify.error('Elegí una fecha de expiración.');
+        return;
+      }
+      request = { expiresAt: new Date(raw.expiresAt).toISOString() };
+    } else {
+      request = { ttlMinutes: raw.ttlMinutes };
+    }
     this.loading.set(true);
-    this.geofence.generateQr(this.workSiteId, this.qrForm.getRawValue()).subscribe({
+    this.geofence.generateQr(this.workSiteId, request).subscribe({
       next: (token) => {
         this.qr.set(token);
         void toDataURL(token.token, { width: 220 }).then((url) => this.qrImage.set(url));
