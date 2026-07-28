@@ -71,19 +71,23 @@ const STATUS_LABELS: Record<string, string> = {
         @if (error()) { <p class="error-text">{{ error() }}</p> }
 
         <div class="table-wrap">
-          <table mat-table [dataSource]="filtered()" style="width:100%">
-            <!-- Columnas de datos -->
-            <ng-container matColumnDef="email">
-              <th mat-header-cell *matHeaderCellDef>Correo</th>
-              <td mat-cell *matCellDef="let u">{{ u.email }}</td>
-            </ng-container>
-            <ng-container matColumnDef="name">
-              <th mat-header-cell *matHeaderCellDef>Nombre</th>
-              <td mat-cell *matCellDef="let u">{{ u.firstName }} {{ u.lastName }}</td>
+          <table mat-table [dataSource]="filtered()" class="users-table" style="width:100%">
+            <!-- Colaborador: avatar + nombre + correo -->
+            <ng-container matColumnDef="user">
+              <th mat-header-cell *matHeaderCellDef>Colaborador</th>
+              <td mat-cell *matCellDef="let u">
+                <div class="u-cell">
+                  <div class="av" [style.background]="avatarColor(u).bg" [style.color]="avatarColor(u).fg">{{ initials(u) }}</div>
+                  <div class="u-txt">
+                    <div class="nm">{{ u.firstName }} {{ u.lastName }}</div>
+                    <div class="sub">{{ u.email }}</div>
+                  </div>
+                </div>
+              </td>
             </ng-container>
             <ng-container matColumnDef="employeeCode">
               <th mat-header-cell *matHeaderCellDef>Código</th>
-              <td mat-cell *matCellDef="let u">{{ u.employeeCode || '—' }}</td>
+              <td mat-cell *matCellDef="let u"><span class="code">{{ u.employeeCode || '—' }}</span></td>
             </ng-container>
             <ng-container matColumnDef="status">
               <th mat-header-cell *matHeaderCellDef>Estado</th>
@@ -107,14 +111,9 @@ const STATUS_LABELS: Record<string, string> = {
             </ng-container>
 
             <!-- Fila de filtros por columna (estilo Excel) -->
-            <ng-container matColumnDef="email-f">
+            <ng-container matColumnDef="user-f">
               <th mat-header-cell *matHeaderCellDef class="fcell">
-                <input class="col-filter" placeholder="Filtrar…" [value]="fEmail()" (input)="fEmail.set(asValue($event))" />
-              </th>
-            </ng-container>
-            <ng-container matColumnDef="name-f">
-              <th mat-header-cell *matHeaderCellDef class="fcell">
-                <input class="col-filter" placeholder="Filtrar…" [value]="fName()" (input)="fName.set(asValue($event))" />
+                <input class="col-filter" placeholder="Filtrar nombre o correo…" [value]="fUser()" (input)="fUser.set(asValue($event))" />
               </th>
             </ng-container>
             <ng-container matColumnDef="employeeCode-f">
@@ -144,7 +143,7 @@ const STATUS_LABELS: Record<string, string> = {
 
             <tr mat-header-row *matHeaderRowDef="columns"></tr>
             <tr mat-header-row *matHeaderRowDef="filterColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: columns" (click)="openEdit(row)" style="cursor:pointer"></tr>
+            <tr mat-row *matRowDef="let row; columns: columns" (click)="openEdit(row)" class="urow"></tr>
           </table>
         </div>
 
@@ -164,10 +163,28 @@ const STATUS_LABELS: Record<string, string> = {
   `,
   styles: [
     `
+      .users-table { border-collapse: separate; }
+      .urow { cursor: pointer; transition: background 0.12s ease; }
+      .urow:hover { background: var(--surface-2); }
+      .users-table td.mat-mdc-cell { padding-top: 10px; padding-bottom: 10px; }
+
+      .u-cell { display: flex; align-items: center; gap: 12px; }
+      .u-cell .av {
+        width: 38px; height: 38px; border-radius: 50%; flex: none;
+        display: grid; place-items: center; font-weight: 700; font-size: 0.78rem;
+        background: var(--brand-soft); color: var(--brand); border: none;
+      }
+      .u-cell .u-txt { min-width: 0; }
+      .u-cell .nm { font-weight: 600; color: var(--text); line-height: 1.2; }
+      .u-cell .sub { font-size: var(--font-small); color: var(--text-muted); line-height: 1.3; }
+
+      .code { font-variant-numeric: tabular-nums; color: var(--text-muted); font-weight: 600; }
+
       .role-tags { display: inline-flex; flex-wrap: wrap; gap: 6px; }
-      .role-tag { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); border-radius: 999px; padding: 2px 10px; font-size: var(--font-small); font-weight: 600; white-space: nowrap; }
-      .fcell { padding-top: 6px !important; padding-bottom: 6px !important; }
-      .col-filter { width: 100%; min-width: 90px; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: var(--font-small); }
+      .role-tag { background: var(--brand-soft); border: 1px solid var(--brand-border); color: var(--brand); border-radius: 999px; padding: 2px 10px; font-size: var(--font-small); font-weight: 600; white-space: nowrap; }
+
+      .fcell { padding-top: 6px !important; padding-bottom: 6px !important; background: var(--surface-2); }
+      .col-filter { width: 100%; min-width: 90px; padding: 7px 9px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: var(--font-small); }
       .col-filter:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
       select.col-filter { cursor: pointer; }
     `,
@@ -179,8 +196,8 @@ export class UsersComponent {
   private readonly roleService = inject(RoleService);
   private readonly dialog = inject(MatDialog);
 
-  protected readonly columns = ['email', 'name', 'employeeCode', 'status', 'roles', 'actions'];
-  protected readonly filterColumns = ['email-f', 'name-f', 'employeeCode-f', 'status-f', 'roles-f', 'actions-f'];
+  protected readonly columns = ['user', 'employeeCode', 'status', 'roles', 'actions'];
+  protected readonly filterColumns = ['user-f', 'employeeCode-f', 'status-f', 'roles-f', 'actions-f'];
   protected readonly statuses = USER_STATUSES;
   protected readonly roleOptions = ROLE_OPTIONS;
 
@@ -196,26 +213,23 @@ export class UsersComponent {
   protected readonly searchControl = this.fb.nonNullable.control('');
 
   // Filtros por columna (sobre la página cargada)
-  protected readonly fEmail = signal('');
-  protected readonly fName = signal('');
+  protected readonly fUser = signal('');
   protected readonly fCode = signal('');
   protected readonly fStatus = signal<string>('');
   protected readonly fRole = signal<string>('');
 
   protected readonly hasColumnFilters = computed(
-    () => !!(this.fEmail() || this.fName() || this.fCode() || this.fStatus() || this.fRole()),
+    () => !!(this.fUser() || this.fCode() || this.fStatus() || this.fRole()),
   );
 
   protected readonly filtered = computed(() => {
-    const email = this.fEmail().trim().toLowerCase();
-    const name = this.fName().trim().toLowerCase();
+    const user = this.fUser().trim().toLowerCase();
     const code = this.fCode().trim().toLowerCase();
     const status = this.fStatus();
     const role = this.fRole();
     return this.users().filter(
       (u) =>
-        (!email || u.email.toLowerCase().includes(email)) &&
-        (!name || `${u.firstName} ${u.lastName}`.toLowerCase().includes(name)) &&
+        (!user || `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(user)) &&
         (!code || (u.employeeCode ?? '').toLowerCase().includes(code)) &&
         (!status || u.status === status) &&
         (!role || u.roles.includes(role)),
@@ -228,6 +242,30 @@ export class UsersComponent {
       error: () => void 0,
     });
     this.reload();
+  }
+
+  protected initials(u: User): string {
+    const a = u.firstName?.[0] ?? '';
+    const b = u.lastName?.[0] ?? '';
+    return (a + b).toUpperCase() || (u.email?.[0] ?? '?').toUpperCase();
+  }
+
+  /** Paleta sobria (fondos suaves + texto) para los avatares, asignada de forma estable por usuario. */
+  private readonly avatarPalette = [
+    { bg: 'var(--brand-soft)', fg: 'var(--brand)' },
+    { bg: 'var(--info-bg)', fg: 'var(--info)' },
+    { bg: 'var(--success-bg)', fg: 'var(--success)' },
+    { bg: 'var(--warning-bg)', fg: 'var(--warning)' },
+    { bg: 'var(--neutral-bg)', fg: 'var(--neutral)' },
+  ];
+
+  protected avatarColor(u: User): { bg: string; fg: string } {
+    const key = u.id || u.email || `${u.firstName}${u.lastName}`;
+    let h = 0;
+    for (let i = 0; i < key.length; i++) {
+      h = (h * 31 + key.charCodeAt(i)) >>> 0;
+    }
+    return this.avatarPalette[h % this.avatarPalette.length];
   }
 
   protected label(code: string): string {
@@ -243,8 +281,7 @@ export class UsersComponent {
   }
 
   protected clearColumnFilters(): void {
-    this.fEmail.set('');
-    this.fName.set('');
+    this.fUser.set('');
     this.fCode.set('');
     this.fStatus.set('');
     this.fRole.set('');

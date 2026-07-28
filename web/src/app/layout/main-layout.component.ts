@@ -1,10 +1,6 @@
-import { Component, computed, inject, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { map } from 'rxjs';
+import { Component, computed, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { BreakpointObserver } from '@angular/cdk/layout';
 import { MatButtonModule } from '@angular/material/button';
-import { MatSidenav } from '@angular/material/sidenav';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
@@ -15,8 +11,6 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { AuthService } from '../core/auth/auth.service';
 import { AuthStore } from '../core/auth/auth.store';
 import { ThemeService } from '../core/theme/theme.service';
-import { Company } from '../features/admin/companies/company.models';
-import { CompanyService } from '../features/admin/companies/company.service';
 
 /**
  * Shell de la aplicación autenticada: topbar (marca + tema + usuario) y sidenav de
@@ -40,60 +34,17 @@ import { CompanyService } from '../features/admin/companies/company.service';
   styles: [
     `
       .layout { display: flex; flex-direction: column; height: 100vh; }
-      .brand-word { font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
-
-      mat-toolbar {
-        background: var(--surface) !important;
-        color: var(--text) !important;
-        border-bottom: 1px solid var(--border);
-      }
-      mat-toolbar mat-icon { color: var(--text-muted); }
-
-      mat-sidenav {
-        width: 264px;
-        max-width: 82vw;
-        display: flex;
-        flex-direction: column;
-      }
       .content { padding: 24px; }
-      @media (max-width: 720px) {
-        .content { padding: 16px; }
-        .brand-word { display: none; }
-        .user-btn span:not(.avatar) { display: none; }
-      }
+      .brand-word { font-weight: 700; letter-spacing: -0.01em; }
+
+      mat-sidenav { width: 264px; }
       .brand {
         display: flex; align-items: center; gap: 12px;
         padding: 18px 20px; border-bottom: 1px solid var(--sidenav-border);
       }
       .brand .logo { width: 34px; height: 34px; flex: 0 0 auto; }
-      .brand .name {
-        font-weight: 800; font-size: 0.95rem; line-height: 1.2;
-        letter-spacing: 0.02em; text-transform: uppercase; color: var(--sidenav-text);
-      }
-      .brand .tag {
-        font-weight: 700; font-size: 0.78rem; line-height: 1.2;
-        letter-spacing: 0.03em; text-transform: uppercase; color: var(--sidenav-active-text);
-      }
-
-      .nav-scroll { flex: 1 1 auto; overflow-y: auto; }
-
-      .tenant-footer {
-        display: flex; align-items: center; gap: 10px;
-        padding: 14px 16px; margin-top: auto;
-        border-top: 1px solid var(--sidenav-border);
-        color: var(--sidenav-text);
-      }
-      .tenant-footer .tenant-avatar {
-        width: 34px; height: 34px; border-radius: 10px; flex: 0 0 auto;
-        display: grid; place-items: center; font-size: 0.75rem; font-weight: 700;
-        background: var(--sidenav-active-bg); color: var(--sidenav-active-text);
-      }
-      .tenant-footer .tenant-body { flex: 1 1 auto; min-width: 0; }
-      .tenant-footer .tenant-name {
-        font-weight: 650; font-size: 0.85rem; line-height: 1.2;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      }
-      .tenant-footer .tenant-meta { font-size: 0.72rem; color: var(--sidenav-text-muted); }
+      .brand .name { font-weight: 700; font-size: 1.05rem; line-height: 1; color: var(--sidenav-text); }
+      .brand .tag { font-size: 0.72rem; color: var(--sidenav-text-muted); }
 
       .nav-group {
         padding: 18px 20px 6px; font-size: 0.7rem; font-weight: 700;
@@ -128,7 +79,7 @@ import { CompanyService } from '../features/admin/companies/company.service';
   ],
   template: `
     <div class="layout">
-      <mat-toolbar>
+      <mat-toolbar color="primary">
         <button mat-icon-button (click)="drawer.toggle()" aria-label="Menú">
           <mat-icon>menu</mat-icon>
         </button>
@@ -159,7 +110,7 @@ import { CompanyService } from '../features/admin/companies/company.service';
       </mat-toolbar>
 
       <mat-sidenav-container style="flex:1 1 auto">
-        <mat-sidenav #drawer [mode]="isHandset() ? 'over' : 'side'" [opened]="!isHandset()" (click)="closeOnHandset(drawer)">
+        <mat-sidenav #drawer mode="side" opened>
           <div class="brand">
             <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
               <defs>
@@ -173,12 +124,11 @@ import { CompanyService } from '../features/admin/companies/company.service';
               <path d="M32 22v11l7 5" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
             <div>
-              <div class="name">Nexus Soft</div>
+              <div class="name">Nexus</div>
               <div class="tag">Time Clock</div>
             </div>
           </div>
 
-          <div class="nav-scroll">
           <mat-nav-list>
             <a mat-list-item class="nav-item" routerLink="/dashboard" routerLinkActive="active">
               <mat-icon matListItemIcon>dashboard</mat-icon>
@@ -220,6 +170,10 @@ import { CompanyService } from '../features/admin/companies/company.service';
                 <a mat-list-item class="nav-item" routerLink="/users" routerLinkActive="active">
                   <mat-icon matListItemIcon>group</mat-icon>
                   <span matListItemTitle>Usuarios</span>
+                </a>
+                <a mat-list-item class="nav-item" routerLink="/people" routerLinkActive="active">
+                  <mat-icon matListItemIcon>groups</mat-icon>
+                  <span matListItemTitle>Personas</span>
                 </a>
               }
               @if (can('company:manage')) {
@@ -274,17 +228,6 @@ import { CompanyService } from '../features/admin/companies/company.service';
               </a>
             }
           </mat-nav-list>
-          </div>
-
-          @if (company(); as c) {
-            <div class="tenant-footer">
-              <span class="tenant-avatar">{{ tenantInitials(c.name) }}</span>
-              <div class="tenant-body">
-                <div class="tenant-name">{{ c.name }}</div>
-                <div class="tenant-meta">{{ c.timezone }} · {{ c.locale }}</div>
-              </div>
-            </div>
-          }
         </mat-sidenav>
 
         <mat-sidenav-content class="content">
@@ -298,60 +241,16 @@ import { CompanyService } from '../features/admin/companies/company.service';
 })
 export class MainLayoutComponent {
   private readonly authService = inject(AuthService);
-  private readonly companyService = inject(CompanyService);
   private readonly store = inject(AuthStore);
   private readonly router = inject(Router);
-  private readonly breakpointObserver = inject(BreakpointObserver);
   protected readonly theme = inject(ThemeService);
 
   protected readonly user = this.store.user;
-  protected readonly company = signal<Company | null>(null);
   protected readonly isDark = computed(() => this.theme.theme() === 'dark');
-  /** Bajo este ancho el sidenav se comporta como overlay (se cierra al tocar afuera o al navegar). */
-  protected readonly isHandset = toSignal(this.breakpointObserver.observe('(max-width: 900px)').pipe(map((r) => r.matches)), {
-    initialValue: false,
-  });
-  protected readonly hasAdmin = computed(
-    () =>
-      this.can('company:manage') ||
-      this.can('user:manage') ||
-      this.can('worksite:manage') ||
-      this.can('project:manage') ||
-      this.can('schedule:manage'),
-  );
 
   constructor() {
-    if (this.store.user()) {
-      this.loadCompany();
-    } else {
-      this.authService.loadCurrentUser().subscribe({
-        next: () => this.loadCompany(),
-        error: () => void 0,
-      });
-    }
-  }
-
-  /** Solo hay "una empresa actual" para un usuario de tenant; la plataforma no aplica. */
-  private loadCompany(): void {
-    if (!this.store.user()?.tenantId) {
-      return;
-    }
-    this.companyService.getMine().subscribe({
-      next: (c) => this.company.set(c),
-      error: () => void 0,
-    });
-  }
-
-  /** Iniciales de la empresa para el avatar del pie del sidenav (p. ej. "ACME Construcciones" → AC). */
-  protected tenantInitials(name: string): string {
-    const parts = name.split(/\s+/).filter(Boolean);
-    const letters = parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2);
-    return letters.toUpperCase();
-  }
-
-  protected closeOnHandset(drawer: MatSidenav): void {
-    if (this.isHandset()) {
-      void drawer.close();
+    if (!this.store.user()) {
+      this.authService.loadCurrentUser().subscribe({ error: () => void 0 });
     }
   }
 

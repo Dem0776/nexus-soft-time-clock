@@ -10,6 +10,7 @@ import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
 import { EmptyStateComponent } from '../../core/ui/empty-state.component';
 import { NotificationService } from '../../core/ui/notification.service';
@@ -17,6 +18,7 @@ import { PageHeaderComponent } from '../../core/ui/page-header.component';
 import { StatusChipComponent } from '../../core/ui/status-chip.component';
 import { ResolveVacation, VacationRequest, VacationStatus } from './vacation.models';
 import { VacationService } from './vacation.service';
+import { VacationRequestDialogComponent } from './vacation-request-dialog.component';
 
 /**
  * Bandeja de solicitudes de vacaciones (RF-09 ampliado): tabla + drawer de resolución,
@@ -30,6 +32,7 @@ import { VacationService } from './vacation.service';
     ReactiveFormsModule,
     MatCardModule,
     MatTableModule,
+    MatDialogModule,
     MatPaginatorModule,
     MatButtonModule,
     MatIconModule,
@@ -47,6 +50,7 @@ import { VacationService } from './vacation.service';
       @if (pendingCount() > 0) {
         <span class="count-pill"><mat-icon>schedule</mat-icon> {{ pendingCount() }} pendientes</span>
       }
+      <button mat-flat-button color="primary" (click)="openCreate()"><mat-icon>add</mat-icon> Nueva solicitud</button>
     </app-page-header>
 
     <div class="split-layout">
@@ -193,6 +197,7 @@ export class VacationsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(VacationService);
   private readonly notify = inject(NotificationService);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly columns = ['user', 'period', 'days', 'status', 'actions'];
   protected readonly requests = signal<VacationRequest[]>([]);
@@ -225,6 +230,13 @@ export class VacationsComponent {
 
   constructor() {
     this.reload();
+  }
+
+  protected openCreate(): void {
+    const ref = this.dialog.open(VacationRequestDialogComponent, { width: '560px', maxWidth: '96vw', autoFocus: false });
+    ref.afterClosed().subscribe((created) => {
+      if (created) this.reload();
+    });
   }
 
   protected reload(): void {

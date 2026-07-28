@@ -13,7 +13,7 @@ import { forkJoin, of } from 'rxjs';
 
 import { NotificationService } from '../../../core/ui/notification.service';
 import { StatusChipComponent } from '../../../core/ui/status-chip.component';
-import { rankOf, Role } from '../roles/role.models';
+import { Role } from '../roles/role.models';
 import { EmployeeProfile, GENDERS } from './employee-profile.models';
 import { EmployeeProfileService } from './employee-profile.service';
 import { USER_STATUSES, User, UserStatus } from './user.models';
@@ -137,7 +137,7 @@ export interface UserEditData {
         <div class="roles-list">
           @for (role of data.assignableRoles; track role.code) {
             <mat-checkbox [checked]="isRole(role.code)" (change)="toggleRole(role.code, $event.checked)">
-              {{ role.name }} <span class="rank-badge" [class]="'tier-' + rankTier(role.code)">Rango {{ rank(role.code) }}</span>
+              {{ role.name }} <span class="muted">({{ role.code }})</span>
             </mat-checkbox>
           }
         </div>
@@ -155,13 +155,13 @@ export interface UserEditData {
   styles: [
     `
       :host { display: block; }
-      .m-head { display: flex; align-items: center; gap: 14px; padding: 4px 4px 16px; border-bottom: 1px solid var(--border); }
+      .m-head { display: flex; align-items: center; gap: 14px; padding: 20px 28px 16px; border-bottom: 1px solid var(--border); }
       .m-head .badge-ic { width: 44px; height: 44px; border-radius: 50%; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; border: 1px solid var(--brand-border); flex: none; font-weight: 700; }
       .m-head .t { flex: 1; }
       .m-head h2 { margin: 0; font-size: 1.15rem; font-weight: 700; }
       .m-head p { margin: 2px 0 0; color: var(--text-muted); font-size: var(--font-small); }
       .m-head .sep { margin: 0 6px; }
-      .m-body { padding: 4px 4px 8px; max-height: 60vh; overflow-y: auto; }
+      .m-body { padding: 8px 28px 12px; max-height: 60vh; overflow-y: auto; }
       .fs { padding: 16px 0; }
       .fs + .fs { border-top: 1px solid var(--border); }
       .fs-head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
@@ -174,7 +174,7 @@ export interface UserEditData {
       .chip-cell { display: flex; align-items: center; }
       .opt-acc { margin-top: 6px; display: block; }
       .roles-list { display: flex; flex-direction: column; gap: var(--sp-2); }
-      .m-foot { display: flex; align-items: center; gap: 10px; padding: 14px 4px 4px; border-top: 1px solid var(--border); }
+      .m-foot { display: flex; align-items: center; gap: 10px; padding: 14px 28px 18px; border-top: 1px solid var(--border); }
       .m-foot .fill { flex: 1; }
       @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
     `,
@@ -193,15 +193,6 @@ export class UserEditDialogComponent {
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly roles = signal<string[]>([...this.data.user.roles]);
-  protected readonly rank = rankOf;
-
-  protected rankTier(code: string): 1 | 2 | 3 | 4 {
-    const value = rankOf(code);
-    if (value >= 80) return 1;
-    if (value >= 60) return 2;
-    if (value >= 40) return 3;
-    return 4;
-  }
 
   protected readonly form = this.fb.nonNullable.group({
     gender: [''],
