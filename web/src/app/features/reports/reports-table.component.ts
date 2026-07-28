@@ -1,9 +1,13 @@
 import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { AttendanceReport, LATE_THRESHOLD, SortColumn, SortState } from './report.models';
+
+/** Tipo de filtro por columna (fila de filtros bajo el encabezado, estilo Excel). */
+type ColumnFilter = 'text' | 'number' | 'status';
 
 interface ColumnDef {
   key: SortColumn;
@@ -11,38 +15,44 @@ interface ColumnDef {
   /** Tooltip cuando el encabezado necesita aclaración. */
   hint?: string;
   numeric: boolean;
+  /** Tipo de filtro en la fila; sin valor = columna no filtrable. */
+  filter?: ColumnFilter;
+  /** Nombre del control (texto) o clave del rango numérico dentro de `ranges`. */
+  ctrl?: string;
 }
 
 const COLUMNS: readonly ColumnDef[] = [
-  { key: 'employeeNumber', label: 'N.º empleado', hint: 'Código de empleado', numeric: false },
-  { key: 'employeeName', label: 'Nombre', numeric: false },
-  { key: 'workCenter', label: 'Centro de trabajo', numeric: false },
-  { key: 'expectedDays', label: 'Días esp.', hint: 'Días laborables esperados', numeric: true },
-  { key: 'attendedDays', label: 'Días asist.', hint: 'Días con asistencia registrada', numeric: true },
-  { key: 'justifiedAbsences', label: 'Faltas just.', hint: 'Faltas justificadas', numeric: true },
-  { key: 'unjustifiedAbsences', label: 'Faltas inj.', hint: 'Faltas injustificadas', numeric: true },
-  { key: 'lateArrivals', label: 'Retardos', numeric: true },
-  { key: 'workedHours', label: 'H. trabajadas', hint: 'Horas normales laboradas', numeric: true },
-  { key: 'overtimeHours', label: 'H. extra', hint: 'Horas extra laboradas', numeric: true },
-  { key: 'totalHours', label: 'H. totales', hint: 'Trabajadas + extra', numeric: true },
-  { key: 'active', label: 'Estado', numeric: false },
-  { key: 'compliancePercentage', label: '% Cumpl.', hint: 'Cumplimiento vs. días esperados', numeric: true },
+  { key: 'employeeNumber', label: 'N.º empleado', hint: 'Código de empleado', numeric: false, filter: 'text', ctrl: 'employeeNumber' },
+  { key: 'employeeName', label: 'Nombre', numeric: false, filter: 'text', ctrl: 'employeeName' },
+  { key: 'workCenter', label: 'Centro de trabajo', numeric: false, filter: 'text', ctrl: 'workCenter' },
+  { key: 'expectedDays', label: 'Días esp.', hint: 'Días laborables esperados', numeric: true, filter: 'number', ctrl: 'expectedDays' },
+  { key: 'attendedDays', label: 'Días asist.', hint: 'Días con asistencia registrada', numeric: true, filter: 'number', ctrl: 'attendedDays' },
+  { key: 'justifiedAbsences', label: 'Faltas just.', hint: 'Faltas justificadas', numeric: true, filter: 'number', ctrl: 'justifiedAbsences' },
+  { key: 'unjustifiedAbsences', label: 'Faltas inj.', hint: 'Faltas injustificadas', numeric: true, filter: 'number', ctrl: 'unjustifiedAbsences' },
+  { key: 'lateArrivals', label: 'Retardos', numeric: true, filter: 'number', ctrl: 'lateArrivals' },
+  { key: 'workedHours', label: 'H. trabajadas', hint: 'Horas normales laboradas', numeric: true, filter: 'number', ctrl: 'workedHours' },
+  { key: 'overtimeHours', label: 'H. extra', hint: 'Horas extra laboradas', numeric: true, filter: 'number', ctrl: 'overtimeHours' },
+  { key: 'totalHours', label: 'H. totales', hint: 'Trabajadas + extra', numeric: true, filter: 'number', ctrl: 'totalHours' },
+  { key: 'active', label: 'Estado', numeric: false, filter: 'status' },
+  { key: 'compliancePercentage', label: '% Cumpl.', hint: 'Cumplimiento vs. días esperados', numeric: true, filter: 'number', ctrl: 'compliancePercentage' },
 ];
 
 /**
- * Tabla presentacional del reporte (OnPush + trackBy). Encabezado fijo, zebra, hover, badges e
- * indicadores por color. Emite {@code sortChange} al hacer clic en un encabezado.
+ * Tabla presentacional del reporte (OnPush + trackBy). Encabezado fijo con orden por clic e
+ * indicadores por color. Debajo del encabezado, una fila de filtros siempre visible (estilo Excel):
+ * texto "Filtrar…" para columnas de texto, rango Mín/Máx para numéricas y un desplegable para el
+ * estado. Los controles están conectados al FormGroup de filtros del componente padre.
  */
 @Component({
   selector: 'app-report-table',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DecimalPipe, MatIconModule, MatTooltipModule],
+  imports: [DecimalPipe, ReactiveFormsModule, MatIconModule, MatTooltipModule],
   template: `
     <div class="table-wrap">
       <table class="report-table">
         <thead>
-          <tr>
+          <tr class="head-row">
             @for (col of columns; track col.key) {
               <th
                 [class.numeric]="col.numeric"
@@ -55,6 +65,36 @@ const COLUMNS: readonly ColumnDef[] = [
                   {{ col.label }}
                   <mat-icon class="sort-icon">{{ sortIcon(col.key) }}</mat-icon>
                 </span>
+              </th>
+            }
+          </tr>
+          <tr class="filter-row">
+            @for (col of columns; track col.key) {
+              <th [class.numeric]="col.numeric">
+                @switch (col.filter) {
+                  @case ('text') {
+                    <input
+                      class="f-input"
+                      type="text"
+                      placeholder="Filtrar…"
+                      autocomplete="off"
+                      [formControl]="textCtrl(col.ctrl!)"
+                    />
+                  }
+                  @case ('number') {
+                    <div class="f-range">
+                      <input class="f-input sm" type="number" placeholder="Mín" [formControl]="rangeCtrl(col.ctrl!, 'min')" />
+                      <input class="f-input sm" type="number" placeholder="Máx" [formControl]="rangeCtrl(col.ctrl!, 'max')" />
+                    </div>
+                  }
+                  @case ('status') {
+                    <select class="f-select" [formControl]="statusCtrl()">
+                      <option value="ALL">Todos</option>
+                      <option value="ACTIVE">Activo</option>
+                      <option value="INACTIVE">Inactivo</option>
+                    </select>
+                  }
+                }
               </th>
             }
           </tr>
@@ -114,10 +154,14 @@ const COLUMNS: readonly ColumnDef[] = [
         font-size: 0.85rem;
         min-width: 1100px;
       }
-      thead th {
+
+      /* --- Encabezado ordenable --- */
+      .head-row th {
         position: sticky;
         top: 0;
-        z-index: 2;
+        z-index: 3;
+        height: 40px;
+        box-sizing: border-box;
         background: var(--surface-2);
         color: var(--text-muted);
         font-size: 0.72rem;
@@ -125,24 +169,59 @@ const COLUMNS: readonly ColumnDef[] = [
         text-transform: uppercase;
         letter-spacing: 0.04em;
         text-align: left;
-        padding: var(--sp-3) var(--sp-3);
+        padding: 0 var(--sp-3);
         border-bottom: 1px solid var(--border);
         cursor: pointer;
         user-select: none;
         white-space: nowrap;
         transition: color 0.12s ease;
       }
-      thead th:hover { color: var(--text); }
-      thead th.sorted { color: var(--brand); }
-      thead th.numeric { text-align: right; }
+      .head-row th:hover { color: var(--text); }
+      .head-row th.sorted { color: var(--brand); }
+      .head-row th.numeric { text-align: right; }
       .th-content { display: inline-flex; align-items: center; gap: 2px; }
-      th.numeric .th-content { flex-direction: row-reverse; }
-      .sort-icon {
-        font-size: 16px;
-        width: 16px;
-        height: 16px;
-        opacity: 0.7;
+      .head-row th.numeric .th-content { flex-direction: row-reverse; }
+      .sort-icon { font-size: 16px; width: 16px; height: 16px; opacity: 0.7; }
+
+      /* --- Fila de filtros (siempre visible, estilo Excel) --- */
+      .filter-row th {
+        position: sticky;
+        top: 40px;
+        z-index: 2;
+        background: color-mix(in srgb, var(--surface-2) 60%, var(--surface));
+        padding: 6px var(--sp-2);
+        border-bottom: 1px solid var(--border);
+        vertical-align: middle;
       }
+      .f-input,
+      .f-select {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text);
+        font-size: 0.78rem;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.12s ease, box-shadow 0.12s ease;
+      }
+      .f-input:focus,
+      .f-select:focus {
+        border-color: var(--brand);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 20%, transparent);
+      }
+      .f-input::placeholder { color: var(--text-soft); }
+      .f-select { cursor: pointer; }
+      .f-range { display: flex; gap: 4px; }
+      .f-input.sm { padding: 6px 6px; text-align: right; }
+      /* Oculta las flechas del input number para un look más limpio */
+      .f-input[type='number']::-webkit-outer-spin-button,
+      .f-input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+      .f-input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
+
+      /* --- Cuerpo --- */
       tbody td {
         padding: var(--sp-3) var(--sp-3);
         border-bottom: 1px solid var(--border);
@@ -181,10 +260,26 @@ const COLUMNS: readonly ColumnDef[] = [
 export class ReportTableComponent {
   readonly rows = input.required<AttendanceReport[]>();
   readonly sort = input.required<SortState>();
+  /** FormGroup de filtros del componente padre (mismo estado que alimenta el filtrado). */
+  readonly filters = input.required<FormGroup>();
   readonly sortChange = output<SortColumn>();
 
   protected readonly columns = COLUMNS;
   protected readonly lateThreshold = computed(() => LATE_THRESHOLD);
+
+  // --- Acceso a los controles del formulario de filtros del padre ---
+
+  protected textCtrl(name: string): FormControl {
+    return this.filters().get(name) as FormControl;
+  }
+
+  protected rangeCtrl(key: string, bound: 'min' | 'max'): FormControl {
+    return this.filters().get(['ranges', key, bound]) as FormControl;
+  }
+
+  protected statusCtrl(): FormControl {
+    return this.filters().get('status') as FormControl;
+  }
 
   protected requestSort(column: SortColumn): void {
     this.sortChange.emit(column);

@@ -25,7 +25,6 @@ import {
   defaultFilters,
 } from './report.models';
 import { ReportService } from './report.service';
-import { ReportFiltersComponent } from './reports-filters.component';
 import { ReportTableComponent } from './reports-table.component';
 
 const NUMERIC_COLUMNS: readonly NumericColumn[] = [
@@ -35,8 +34,9 @@ const NUMERIC_COLUMNS: readonly NumericColumn[] = [
 
 /**
  * Reporte de asistencia por colaborador (RF-11). Carga el agregado del backend para un rango de
- * fechas y aplica búsqueda, filtros combinables, ordenamiento y paginación en el cliente. Exporta a
- * Excel/PDF respetando los filtros activos. Si el backend no responde, muestra datos de demostración.
+ * fechas y aplica búsqueda, filtros por columna (embudo estilo Excel en cada encabezado),
+ * ordenamiento y paginación en el cliente. Exporta a Excel/PDF respetando los filtros activos.
+ * Si el backend no responde, muestra datos de demostración.
  */
 @Component({
   selector: 'app-reports',
@@ -53,7 +53,6 @@ const NUMERIC_COLUMNS: readonly NumericColumn[] = [
     MatPaginatorModule,
     PageHeaderComponent,
     EmptyStateComponent,
-    ReportFiltersComponent,
     ReportTableComponent,
   ],
   template: `
@@ -85,8 +84,8 @@ const NUMERIC_COLUMNS: readonly NumericColumn[] = [
               <span class="spacer"></span>
 
               <div class="toolbar-actions">
-                <button mat-stroked-button type="button" (click)="filtersOpen.set(!filtersOpen())">
-                  <mat-icon>tune</mat-icon> Filtros por columna
+                <button mat-stroked-button type="button" (click)="clearFilters()" [disabled]="activeFilters() === 0">
+                  <mat-icon>filter_alt_off</mat-icon> Limpiar filtros
                   @if (activeFilters() > 0) { <span class="filter-badge">{{ activeFilters() }}</span> }
                 </button>
                 <button mat-stroked-button type="button" (click)="export('excel')" [disabled]="filtered().length === 0">
@@ -105,6 +104,12 @@ const NUMERIC_COLUMNS: readonly NumericColumn[] = [
                 @if (filtered().length !== total()) { <span class="muted">de {{ total() }}</span> }
                 registro{{ filtered().length === 1 ? '' : 's' }}
               </span>
+              @if (activeFilters() > 0) {
+                <span class="hint-inline">
+                  <mat-icon>filter_alt</mat-icon>
+                  Filtra en la fila que está bajo cada encabezado
+                </span>
+              }
               @if (demo()) {
                 <span class="demo-badge" title="Sin conexión al backend: se muestran datos de demostración.">
                   <mat-icon>science</mat-icon> Datos de demostración
@@ -135,7 +140,7 @@ const NUMERIC_COLUMNS: readonly NumericColumn[] = [
                 [message]="total() === 0 ? 'No hay datos para el periodo seleccionado.' : 'Ningún colaborador coincide con los filtros aplicados.'"
               />
             } @else {
-              <app-report-table [rows]="paged()" [sort]="sort()" (sortChange)="onSort($event)" />
+              <app-report-table [rows]="paged()" [sort]="sort()" [filters]="filtersForm" (sortChange)="onSort($event)" />
               <mat-paginator
                 [length]="filtered().length"
                 [pageSize]="pageSize()"
@@ -147,25 +152,6 @@ const NUMERIC_COLUMNS: readonly NumericColumn[] = [
           </mat-card-content>
         </mat-card>
       </div>
-
-      @if (filtersOpen()) {
-        <aside class="split-drawer">
-          <div class="drawer-header">
-            <div class="titles">
-              <h3>Filtros por columna</h3>
-              <p class="sub">{{ activeFilters() }} filtro{{ activeFilters() === 1 ? '' : 's' }} activo{{ activeFilters() === 1 ? '' : 's' }}</p>
-            </div>
-            <button mat-icon-button (click)="filtersOpen.set(false)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
-          </div>
-          <div class="drawer-body">
-            <app-report-filters [form]="filtersForm" />
-          </div>
-          <div class="drawer-actions">
-            <button mat-button (click)="clearFilters()" [disabled]="activeFilters() === 0">Restablecer</button>
-            <button mat-flat-button color="primary" (click)="filtersOpen.set(false)">Aplicar filtros</button>
-          </div>
-        </aside>
-      }
     </div>
   `,
   styles: [
@@ -192,6 +178,14 @@ const NUMERIC_COLUMNS: readonly NumericColumn[] = [
       }
       .count { font-size: 0.9rem; }
       .count strong { font-size: 1.05rem; color: var(--brand); }
+      .hint-inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.8rem;
+        color: var(--text-soft);
+      }
+      .hint-inline mat-icon { font-size: 16px; width: 16px; height: 16px; }
       .demo-badge {
         display: inline-flex;
         align-items: center;
@@ -258,7 +252,7 @@ export class ReportsComponent {
 
   /** FormGroup con todo el estado de filtros (fuente de verdad, persiste mientras viva el componente). */
   protected readonly form: FormGroup = this.buildForm();
-  /** Subgrupo de filtros avanzados que se pasa al panel reutilizable. */
+  /** Mismo FormGroup, pasado a la tabla para los embudos de encabezado. */
   protected readonly filtersForm = this.form;
 
   // --- Estado de datos ---
@@ -266,7 +260,6 @@ export class ReportsComponent {
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly demo = signal(false);
-  protected readonly filtersOpen = signal(false);
 
   // --- Ordenamiento y paginación (cliente) ---
   protected readonly sort = signal<SortState>({ column: 'employeeName', direction: 'asc' });
@@ -352,7 +345,7 @@ export class ReportsComponent {
     this.pageSize.set(event.pageSize);
   }
 
-  /** Limpia búsqueda y filtros avanzados, conservando el rango de fechas seleccionado. */
+  /** Limpia búsqueda y filtros por columna, conservando el rango de fechas seleccionado. */
   protected clearFilters(): void {
     const defaults = defaultFilters();
     const current = this.form.getRawValue() as ReportFilters;
