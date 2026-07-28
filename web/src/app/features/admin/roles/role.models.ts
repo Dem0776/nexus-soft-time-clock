@@ -21,3 +21,23 @@ export const ROLE_RANK: Record<string, number> = {
 export function rankOf(code: string): number {
   return ROLE_RANK[code] ?? Number.POSITIVE_INFINITY;
 }
+
+/** Nombre en español de cada rol (espejo de los nombres sembrados en V10). */
+export const ROLE_LABELS: Record<string, string> = {
+  SUPER_ADMIN: 'Super Administrador',
+  COMPANY_ADMIN: 'Administrador de Empresa',
+  HR_ADMIN: 'Administrador RR.HH.',
+  SUPERVISOR: 'Supervisor',
+  AUDITOR: 'Auditor',
+  EMPLOYEE: 'Colaborador',
+};
+
+/** Etiqueta legible de un rol; si el código es desconocido, se muestra tal cual. */
+export function roleLabel(code: string): string {
+  return ROLE_LABELS[code] ?? code;
+}
+
+/** Lista de roles para filtros (código + etiqueta en español). */
+export const ROLE_OPTIONS: { code: string; label: string }[] = Object.entries(ROLE_LABELS).map(
+  ([code, label]) => ({ code, label }),
+);
