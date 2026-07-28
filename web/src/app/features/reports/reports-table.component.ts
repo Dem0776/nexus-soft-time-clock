@@ -1,16 +1,12 @@
 import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
-import { AttendanceReport, LATE_THRESHOLD, SortColumn, SortState, StatusFilter } from './report.models';
+import { AttendanceReport, LATE_THRESHOLD, SortColumn, SortState } from './report.models';
 
-/** Tipo de filtro por columna (embudo estilo Excel en el encabezado). */
+/** Tipo de filtro por columna (fila de filtros bajo el encabezado, estilo Excel). */
 type ColumnFilter = 'text' | 'number' | 'status';
 
 interface ColumnDef {
@@ -19,7 +15,7 @@ interface ColumnDef {
   /** Tooltip cuando el encabezado necesita aclaración. */
   hint?: string;
   numeric: boolean;
-  /** Tipo de filtro por encabezado; sin valor = columna no filtrable. */
+  /** Tipo de filtro en la fila; sin valor = columna no filtrable. */
   filter?: ColumnFilter;
   /** Nombre del control (texto) o clave del rango numérico dentro de `ranges`. */
   ctrl?: string;
@@ -43,116 +39,62 @@ const COLUMNS: readonly ColumnDef[] = [
 
 /**
  * Tabla presentacional del reporte (OnPush + trackBy). Encabezado fijo con orden por clic e
- * indicadores por color. Cada columna filtrable expone un embudo estilo Excel que abre un popup
- * conectado al FormGroup de filtros del componente padre (texto / rango numérico / estado).
+ * indicadores por color. Debajo del encabezado, una fila de filtros siempre visible (estilo Excel):
+ * texto "Filtrar…" para columnas de texto, rango Mín/Máx para numéricas y un desplegable para el
+ * estado. Los controles están conectados al FormGroup de filtros del componente padre.
  */
 @Component({
   selector: 'app-report-table',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    DecimalPipe,
-    ReactiveFormsModule,
-    MatIconModule,
-    MatTooltipModule,
-    MatMenuModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-  ],
+  imports: [DecimalPipe, ReactiveFormsModule, MatIconModule, MatTooltipModule],
   template: `
     <div class="table-wrap">
       <table class="report-table">
         <thead>
-          <tr>
+          <tr class="head-row">
             @for (col of columns; track col.key) {
               <th
                 [class.numeric]="col.numeric"
                 [class.sorted]="sort().column === col.key"
-                [class.filtered]="isFilterActive(col)"
+                (click)="requestSort(col.key)"
+                [matTooltip]="col.hint ?? ''"
+                [matTooltipDisabled]="!col.hint"
               >
-                <div class="th-inner">
-                  <span
-                    class="th-label"
-                    (click)="requestSort(col.key)"
-                    [matTooltip]="col.hint ?? ''"
-                    [matTooltipDisabled]="!col.hint"
-                  >
-                    {{ col.label }}
-                    <mat-icon class="sort-icon">{{ sortIcon(col.key) }}</mat-icon>
-                  </span>
-
-                  @if (col.filter) {
-                    <button
-                      type="button"
-                      class="filter-btn"
-                      [class.on]="isFilterActive(col)"
-                      [matMenuTriggerFor]="fmenu"
-                      (click)="$event.stopPropagation()"
-                      [matTooltip]="'Filtrar por ' + col.label"
-                      aria-label="Filtrar columna"
-                    >
-                      <mat-icon>filter_alt</mat-icon>
-                    </button>
-
-                    <mat-menu #fmenu="matMenu">
-                      <div
-                        style="padding:12px;min-width:210px;display:flex;flex-direction:column;gap:8px"
-                        (click)="$event.stopPropagation()"
-                        (keydown)="$event.stopPropagation()"
-                      >
-                        <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;opacity:.7">
-                          {{ col.label }}
-                        </div>
-
-                        @switch (col.filter) {
-                          @case ('text') {
-                            <mat-form-field appearance="outline" subscriptSizing="dynamic" style="width:100%">
-                              <mat-label>Contiene</mat-label>
-                              <input matInput [formControl]="textCtrl(col.ctrl!)" placeholder="Escribe para filtrar" autocomplete="off" />
-                            </mat-form-field>
-                          }
-                          @case ('number') {
-                            <div style="display:flex;gap:8px">
-                              <mat-form-field appearance="outline" subscriptSizing="dynamic" style="width:96px">
-                                <mat-label>Mín</mat-label>
-                                <input matInput type="number" [formControl]="rangeCtrl(col.ctrl!, 'min')" />
-                              </mat-form-field>
-                              <mat-form-field appearance="outline" subscriptSizing="dynamic" style="width:96px">
-                                <mat-label>Máx</mat-label>
-                                <input matInput type="number" [formControl]="rangeCtrl(col.ctrl!, 'max')" />
-                              </mat-form-field>
-                            </div>
-                          }
-                          @case ('status') {
-                            <div style="display:flex;gap:6px;flex-wrap:wrap">
-                              @for (opt of statusOptions; track opt.value) {
-                                <button
-                                  type="button"
-                                  mat-stroked-button
-                                  [color]="statusCtrl().value === opt.value ? 'primary' : undefined"
-                                  (click)="statusCtrl().setValue(opt.value)"
-                                >
-                                  {{ opt.label }}
-                                </button>
-                              }
-                            </div>
-                          }
-                        }
-
-                        <button
-                          type="button"
-                          mat-button
-                          (click)="clearColumn(col)"
-                          [disabled]="!isFilterActive(col)"
-                          style="align-self:flex-start"
-                        >
-                          <mat-icon>backspace</mat-icon> Limpiar
-                        </button>
-                      </div>
-                    </mat-menu>
+                <span class="th-content">
+                  {{ col.label }}
+                  <mat-icon class="sort-icon">{{ sortIcon(col.key) }}</mat-icon>
+                </span>
+              </th>
+            }
+          </tr>
+          <tr class="filter-row">
+            @for (col of columns; track col.key) {
+              <th [class.numeric]="col.numeric">
+                @switch (col.filter) {
+                  @case ('text') {
+                    <input
+                      class="f-input"
+                      type="text"
+                      placeholder="Filtrar…"
+                      autocomplete="off"
+                      [formControl]="textCtrl(col.ctrl!)"
+                    />
                   }
-                </div>
+                  @case ('number') {
+                    <div class="f-range">
+                      <input class="f-input sm" type="number" placeholder="Mín" [formControl]="rangeCtrl(col.ctrl!, 'min')" />
+                      <input class="f-input sm" type="number" placeholder="Máx" [formControl]="rangeCtrl(col.ctrl!, 'max')" />
+                    </div>
+                  }
+                  @case ('status') {
+                    <select class="f-select" [formControl]="statusCtrl()">
+                      <option value="ALL">Todos</option>
+                      <option value="ACTIVE">Activo</option>
+                      <option value="INACTIVE">Inactivo</option>
+                    </select>
+                  }
+                }
               </th>
             }
           </tr>
@@ -212,10 +154,14 @@ const COLUMNS: readonly ColumnDef[] = [
         font-size: 0.85rem;
         min-width: 1100px;
       }
-      thead th {
+
+      /* --- Encabezado ordenable --- */
+      .head-row th {
         position: sticky;
         top: 0;
-        z-index: 2;
+        z-index: 3;
+        height: 40px;
+        box-sizing: border-box;
         background: var(--surface-2);
         color: var(--text-muted);
         font-size: 0.72rem;
@@ -223,41 +169,59 @@ const COLUMNS: readonly ColumnDef[] = [
         text-transform: uppercase;
         letter-spacing: 0.04em;
         text-align: left;
-        padding: var(--sp-2) var(--sp-3);
+        padding: 0 var(--sp-3);
         border-bottom: 1px solid var(--border);
+        cursor: pointer;
         user-select: none;
         white-space: nowrap;
         transition: color 0.12s ease;
       }
-      thead th.sorted { color: var(--brand); }
-      thead th.filtered { background: color-mix(in srgb, var(--brand) 10%, var(--surface-2)); }
-      thead th.numeric { text-align: right; }
-
-      .th-inner { display: inline-flex; align-items: center; gap: 2px; }
-      th.numeric .th-inner { flex-direction: row-reverse; }
-      .th-label { display: inline-flex; align-items: center; gap: 2px; cursor: pointer; }
-      .th-label:hover { color: var(--text); }
-      th.numeric .th-label { flex-direction: row-reverse; }
+      .head-row th:hover { color: var(--text); }
+      .head-row th.sorted { color: var(--brand); }
+      .head-row th.numeric { text-align: right; }
+      .th-content { display: inline-flex; align-items: center; gap: 2px; }
+      .head-row th.numeric .th-content { flex-direction: row-reverse; }
       .sort-icon { font-size: 16px; width: 16px; height: 16px; opacity: 0.7; }
 
-      .filter-btn {
-        display: inline-grid;
-        place-items: center;
-        width: 22px;
-        height: 22px;
-        padding: 0;
-        border: none;
-        border-radius: var(--radius-sm);
-        background: transparent;
-        color: var(--text-soft);
-        cursor: pointer;
-        opacity: 0.55;
-        transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+      /* --- Fila de filtros (siempre visible, estilo Excel) --- */
+      .filter-row th {
+        position: sticky;
+        top: 40px;
+        z-index: 2;
+        background: color-mix(in srgb, var(--surface-2) 60%, var(--surface));
+        padding: 6px var(--sp-2);
+        border-bottom: 1px solid var(--border);
+        vertical-align: middle;
       }
-      .filter-btn:hover { opacity: 1; background: var(--surface); color: var(--text); }
-      .filter-btn mat-icon { font-size: 16px; width: 16px; height: 16px; }
-      .filter-btn.on { opacity: 1; color: var(--brand); }
+      .f-input,
+      .f-select {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text);
+        font-size: 0.78rem;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.12s ease, box-shadow 0.12s ease;
+      }
+      .f-input:focus,
+      .f-select:focus {
+        border-color: var(--brand);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 20%, transparent);
+      }
+      .f-input::placeholder { color: var(--text-soft); }
+      .f-select { cursor: pointer; }
+      .f-range { display: flex; gap: 4px; }
+      .f-input.sm { padding: 6px 6px; text-align: right; }
+      /* Oculta las flechas del input number para un look más limpio */
+      .f-input[type='number']::-webkit-outer-spin-button,
+      .f-input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+      .f-input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
 
+      /* --- Cuerpo --- */
       tbody td {
         padding: var(--sp-3) var(--sp-3);
         border-bottom: 1px solid var(--border);
@@ -302,11 +266,6 @@ export class ReportTableComponent {
 
   protected readonly columns = COLUMNS;
   protected readonly lateThreshold = computed(() => LATE_THRESHOLD);
-  protected readonly statusOptions: ReadonlyArray<{ value: StatusFilter; label: string }> = [
-    { value: 'ALL', label: 'Todos' },
-    { value: 'ACTIVE', label: 'Activo' },
-    { value: 'INACTIVE', label: 'Inactivo' },
-  ];
 
   // --- Acceso a los controles del formulario de filtros del padre ---
 
@@ -320,31 +279,6 @@ export class ReportTableComponent {
 
   protected statusCtrl(): FormControl {
     return this.filters().get('status') as FormControl;
-  }
-
-  /** ¿La columna tiene un filtro con valor? (para pintar el embudo activo). */
-  protected isFilterActive(col: ColumnDef): boolean {
-    if (col.filter === 'text' && col.ctrl) {
-      return !!(this.textCtrl(col.ctrl).value as string)?.trim();
-    }
-    if (col.filter === 'status') {
-      return this.statusCtrl().value !== 'ALL';
-    }
-    if (col.filter === 'number' && col.ctrl) {
-      return this.rangeCtrl(col.ctrl, 'min').value != null || this.rangeCtrl(col.ctrl, 'max').value != null;
-    }
-    return false;
-  }
-
-  protected clearColumn(col: ColumnDef): void {
-    if (col.filter === 'text' && col.ctrl) {
-      this.textCtrl(col.ctrl).setValue('');
-    } else if (col.filter === 'status') {
-      this.statusCtrl().setValue('ALL');
-    } else if (col.filter === 'number' && col.ctrl) {
-      this.rangeCtrl(col.ctrl, 'min').setValue(null);
-      this.rangeCtrl(col.ctrl, 'max').setValue(null);
-    }
   }
 
   protected requestSort(column: SortColumn): void {

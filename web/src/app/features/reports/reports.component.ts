@@ -107,7 +107,7 @@ const NUMERIC_COLUMNS: readonly NumericColumn[] = [
               @if (activeFilters() > 0) {
                 <span class="hint-inline">
                   <mat-icon>filter_alt</mat-icon>
-                  Usa el embudo del encabezado de cada columna para filtrar
+                  Filtra en la fila que está bajo cada encabezado
                 </span>
               }
               @if (demo()) {
