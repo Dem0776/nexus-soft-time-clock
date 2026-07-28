@@ -1,6 +1,9 @@
 package com.condor.nexussoft.timeclock.hr.domain.port.in;
 
+import com.condor.nexussoft.timeclock.hr.domain.BeyondMode;
 import com.condor.nexussoft.timeclock.hr.domain.VacationPolicy;
+import com.condor.nexussoft.timeclock.hr.domain.VacationTier;
+import java.util.List;
 import java.util.UUID;
 
 public interface VacationPolicyUseCase {
@@ -9,7 +12,10 @@ public interface VacationPolicyUseCase {
 
     record UpdatePolicyCommand(
             UUID tenantId,
-            int daysPerYear,
+            List<VacationTier> tiers,
+            BeyondMode beyondMode,
+            int beyondIncrementDays,
+            int beyondEveryYears,
             boolean requireApproval,
             boolean countBusinessDaysOnly
     ) {}

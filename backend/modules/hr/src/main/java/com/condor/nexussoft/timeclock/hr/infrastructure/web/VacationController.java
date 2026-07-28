@@ -1,9 +1,11 @@
 package com.condor.nexussoft.timeclock.hr.infrastructure.web;
 
+import com.condor.nexussoft.timeclock.hr.domain.BeyondMode;
 import com.condor.nexussoft.timeclock.hr.domain.PagedResult;
 import com.condor.nexussoft.timeclock.hr.domain.VacationPolicy;
 import com.condor.nexussoft.timeclock.hr.domain.VacationRequest;
 import com.condor.nexussoft.timeclock.hr.domain.VacationStatus;
+import com.condor.nexussoft.timeclock.hr.domain.VacationTier;
 import com.condor.nexussoft.timeclock.hr.domain.port.in.VacationPolicyUseCase;
 import com.condor.nexussoft.timeclock.hr.domain.port.in.VacationRequestUseCase;
 import com.condor.nexussoft.timeclock.hr.infrastructure.persistence.EmployeeDirectoryQuery;
@@ -19,7 +21,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * Vacaciones: política del tenant y bandeja de solicitudes (RF-09 ampliado).
+ * Vacaciones: política del tenant (escalera por antigüedad) y bandeja de solicitudes.
  *
  * NOTA: si tus controllers usan un context-path, elimina el prefijo "/api/v1".
  */
@@ -44,16 +46,28 @@ public class VacationController {
     @GetMapping("/policy")
     @PreAuthorize("hasAnyAuthority('vacation:manage','vacation:approve')")
     public VacationPolicyDto getPolicy(Authentication auth) {
-        VacationPolicy p = policyUseCase.get(CurrentUser.tenantId(auth));
-        return new VacationPolicyDto(p.daysPerYear(), p.requireApproval(), p.countBusinessDaysOnly());
+        return toDto(policyUseCase.get(CurrentUser.tenantId(auth)));
     }
 
     @PutMapping("/policy")
     @PreAuthorize("hasAuthority('vacation:manage')")
     public VacationPolicyDto updatePolicy(@Valid @RequestBody VacationPolicyDto body, Authentication auth) {
+        List<VacationTier> tiers = body.tiers().stream()
+                .map(t -> new VacationTier(t.year(), t.days()))
+                .toList();
         VacationPolicy p = policyUseCase.update(new VacationPolicyUseCase.UpdatePolicyCommand(
-                CurrentUser.tenantId(auth), body.daysPerYear(), body.requireApproval(), body.countBusinessDaysOnly()));
-        return new VacationPolicyDto(p.daysPerYear(), p.requireApproval(), p.countBusinessDaysOnly());
+                CurrentUser.tenantId(auth), tiers, BeyondMode.valueOf(body.beyondMode().trim().toUpperCase()),
+                body.beyondIncrementDays(), body.beyondEveryYears(),
+                body.requireApproval(), body.countBusinessDaysOnly()));
+        return toDto(p);
+    }
+
+    private static VacationPolicyDto toDto(VacationPolicy p) {
+        List<VacationTierDto> tiers = p.tiers().stream()
+                .map(t -> new VacationTierDto(t.year(), t.days()))
+                .toList();
+        return new VacationPolicyDto(tiers, p.beyondMode().name(),
+                p.beyondIncrementDays(), p.beyondEveryYears(), p.requireApproval(), p.countBusinessDaysOnly());
     }
 
     // ---- Solicitudes ----
