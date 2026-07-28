@@ -76,16 +76,6 @@ export const routes: Routes = [
         loadComponent: () => import('./features/admin/users/users.component').then((m) => m.UsersComponent),
       },
       {
-        path: 'users/new',
-        canActivate: [requirePermission('user:manage')],
-        loadComponent: () => import('./features/admin/users/user-form.component').then((m) => m.UserFormComponent),
-      },
-      {
-        path: 'users/:id/edit',
-        canActivate: [requirePermission('user:manage')],
-        loadComponent: () => import('./features/admin/users/user-form.component').then((m) => m.UserFormComponent),
-      },
-      {
         path: 'work-sites',
         canActivate: [requirePermission('worksite:manage')],
         loadComponent: () =>
@@ -149,6 +139,17 @@ export const routes: Routes = [
         canActivate: [requirePermission('schedule:manage')],
         loadComponent: () =>
           import('./features/admin/event-types/event-types.component').then((m) => m.EventTypesComponent),
+      },
+      {
+        path: 'vacations',
+        canActivate: [requirePermission('vacation:approve')],
+        loadComponent: () => import('./features/vacations/vacations.component').then((m) => m.VacationsComponent),
+      },
+      {
+        path: 'settings',
+        canActivate: [requirePermission('vacation:manage')],
+        loadComponent: () =>
+          import('./features/admin/settings/settings.component').then((m) => m.SettingsComponent),
       },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
     ],

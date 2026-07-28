@@ -242,16 +242,24 @@ import { CompanyService } from '../features/admin/companies/company.service';
               }
             }
 
-            @if (can('schedule:manage')) {
+            @if (can('schedule:manage') || can('vacation:approve')) {
               <div class="nav-group">Planificación</div>
-              <a mat-list-item class="nav-item" routerLink="/scheduling" routerLinkActive="active">
-                <mat-icon matListItemIcon>event</mat-icon>
-                <span matListItemTitle>Horarios y turnos</span>
-              </a>
-              <a mat-list-item class="nav-item" routerLink="/event-types" routerLinkActive="active">
-                <mat-icon matListItemIcon>tune</mat-icon>
-                <span matListItemTitle>Tipos de evento</span>
-              </a>
+              @if (can('schedule:manage')) {
+                <a mat-list-item class="nav-item" routerLink="/scheduling" routerLinkActive="active">
+                  <mat-icon matListItemIcon>event</mat-icon>
+                  <span matListItemTitle>Horarios y turnos</span>
+                </a>
+                <a mat-list-item class="nav-item" routerLink="/event-types" routerLinkActive="active">
+                  <mat-icon matListItemIcon>tune</mat-icon>
+                  <span matListItemTitle>Tipos de evento</span>
+                </a>
+              }
+              @if (can('vacation:approve')) {
+                <a mat-list-item class="nav-item" routerLink="/vacations" routerLinkActive="active">
+                  <mat-icon matListItemIcon>beach_access</mat-icon>
+                  <span matListItemTitle>Vacaciones</span>
+                </a>
+              }
             }
 
             <div class="nav-group">Cuenta</div>
@@ -259,6 +267,12 @@ import { CompanyService } from '../features/admin/companies/company.service';
               <mat-icon matListItemIcon>notifications</mat-icon>
               <span matListItemTitle>Notificaciones</span>
             </a>
+            @if (can('vacation:manage')) {
+              <a mat-list-item class="nav-item" routerLink="/settings" routerLinkActive="active">
+                <mat-icon matListItemIcon>settings</mat-icon>
+                <span matListItemTitle>Configuración</span>
+              </a>
+            }
           </mat-nav-list>
           </div>
 

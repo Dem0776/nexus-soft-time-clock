@@ -41,6 +41,7 @@
         <module>modules/sync</module>
         <module>modules/audit</module>
         <module>modules/incidents</module>
+        <module>modules/hr</module>
         <module>modules/reporting</module>
         <module>modules/realtime</module>
         <module>modules/notifications</module>
@@ -108,6 +109,11 @@
             <dependency>
                 <groupId>com.condor.nexussoft.timeclock</groupId>
                 <artifactId>incidents</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.condor.nexussoft.timeclock</groupId>
+                <artifactId>hr</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

@@ -1,9 +1,9 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -15,10 +15,14 @@ import { MatTableModule } from '@angular/material/table';
 import { EmptyStateComponent } from '../../../core/ui/empty-state.component';
 import { PageHeaderComponent } from '../../../core/ui/page-header.component';
 import { StatusChipComponent } from '../../../core/ui/status-chip.component';
+import { Role } from '../roles/role.models';
+import { RoleService } from '../roles/role.service';
+import { UserEditDialogComponent } from './user-edit-dialog.component';
+import { UserFormDialogComponent } from './user-form-dialog.component';
 import { USER_STATUSES, User } from './user.models';
 import { UserService } from './user.service';
 
-/** Catálogo de usuarios del tenant (RF-06). Alta y edición viven en páginas propias con breadcrumb. */
+/** Administración de usuarios del tenant (RF-06, RF-22): alta y edición (perfil, estado, roles) en modal. */
 @Component({
   selector: 'app-users',
   standalone: true,
@@ -29,6 +33,7 @@ import { UserService } from './user.service';
     MatPaginatorModule,
     MatButtonModule,
     MatIconModule,
+    MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -38,8 +43,8 @@ import { UserService } from './user.service';
     EmptyStateComponent,
   ],
   template: `
-    <app-page-header title="Usuarios" subtitle="Administra los usuarios que tienen acceso al sistema">
-      <button mat-flat-button color="primary" (click)="router.navigate(['/users/new'])">
+    <app-page-header title="Usuarios" subtitle="Administra las personas con acceso al sistema y su información laboral">
+      <button mat-flat-button color="primary" (click)="openCreate()">
         <mat-icon>person_add</mat-icon> Nuevo usuario
       </button>
     </app-page-header>
@@ -97,11 +102,12 @@ import { UserService } from './user.service';
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef></th>
               <td mat-cell *matCellDef="let u" style="text-align:right;white-space:nowrap">
-                <button mat-icon-button (click)="edit(u)" aria-label="Editar"><mat-icon>chevron_right</mat-icon></button>
+                <button mat-stroked-button (click)="openEdit(u)"><mat-icon>edit</mat-icon> Editar</button>
               </td>
             </ng-container>
             <tr mat-header-row *matHeaderRowDef="columns"></tr>
-            <tr mat-row *matRowDef="let row; columns: columns" (click)="edit(row)" style="cursor:pointer"></tr>
+            <tr mat-row *matRowDef="let row; columns: columns"
+                (click)="openEdit(row)" style="cursor:pointer"></tr>
           </table>
         </div>
 
@@ -123,10 +129,11 @@ import { UserService } from './user.service';
 export class UsersComponent {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(UserService);
-  protected readonly router = inject(Router);
+  private readonly roleService = inject(RoleService);
+  private readonly dialog = inject(MatDialog);
 
-  protected readonly columns = ['email', 'name', 'employeeCode', 'status', 'roles', 'actions'];
   protected readonly statuses = USER_STATUSES;
+  protected readonly columns = ['email', 'name', 'employeeCode', 'status', 'roles', 'actions'];
   protected readonly users = signal<User[]>([]);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -134,6 +141,9 @@ export class UsersComponent {
   protected readonly page = signal(0);
   protected readonly size = signal(20);
   protected readonly total = signal(0);
+
+  /** Roles que el operador puede otorgar (el backend ya filtra por potestad de delegación, HU-21). */
+  protected readonly assignableRoles = signal<Role[]>([]);
 
   protected readonly searchControl = this.fb.nonNullable.control('');
   protected readonly statusFilter = this.fb.nonNullable.control('');
@@ -155,6 +165,10 @@ export class UsersComponent {
   });
 
   constructor() {
+    this.roleService.list().subscribe({
+      next: (roles) => this.assignableRoles.set(roles),
+      error: () => void 0,
+    });
     this.reload();
   }
 
@@ -186,7 +200,27 @@ export class UsersComponent {
     this.reload();
   }
 
-  protected edit(user: User): void {
-    void this.router.navigate(['/users', user.id, 'edit']);
+  protected openCreate(): void {
+    const ref = this.dialog.open(UserFormDialogComponent, {
+      width: '760px',
+      maxWidth: '96vw',
+      autoFocus: false,
+      data: { assignableRoles: this.assignableRoles() },
+    });
+    ref.afterClosed().subscribe((created) => {
+      if (created) this.reload();
+    });
+  }
+
+  protected openEdit(user: User): void {
+    const ref = this.dialog.open(UserEditDialogComponent, {
+      width: '720px',
+      maxWidth: '96vw',
+      autoFocus: false,
+      data: { user, assignableRoles: this.assignableRoles() },
+    });
+    ref.afterClosed().subscribe((changed) => {
+      if (changed) this.reload();
+    });
   }
 }
