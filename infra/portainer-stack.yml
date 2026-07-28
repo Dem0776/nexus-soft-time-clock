@@ -97,12 +97,7 @@ services:
       - backend
       - web
     ports:
-      - "${HTTP_PORT:-80}:80"        # HTTP: redirige a HTTPS
-      - "${HTTPS_PORT:-443}:443"     # HTTPS (TLS terminado en NGINX)
-    volumes:
-      # Certificados TLS del host (dominio nexustime.i-condor.com).
-      # Deben existir: fullchain.crt (leaf+cadena) e i-condor.com.key
-      - /home/microservices/certs:/etc/nginx/certs:ro
+      - "${HTTP_PORT:-8081}:80"      # Único punto de entrada. Detrás poné TLS.
     networks: [nexus]
 
 networks:
