@@ -49,6 +49,11 @@ import { IncidentService } from './incident.service';
       <div class="split-main">
         <mat-card>
           <mat-card-content>
+            <div class="open-count">
+              <mat-icon>event</mat-icon>
+              {{ openCount() }} incidencia{{ openCount() === 1 ? '' : 's' }} abierta{{ openCount() === 1 ? '' : 's' }}
+            </div>
+
             <div class="filter-bar">
               <mat-form-field appearance="outline" class="search">
                 <mat-icon matPrefix>search</mat-icon>
@@ -190,6 +195,16 @@ import { IncidentService } from './incident.service';
       }
     </div>
   `,
+  styles: [
+    `
+      .open-count {
+        display: flex; align-items: center; gap: 6px;
+        font-size: var(--font-small); font-weight: 600; color: var(--text-muted);
+        margin-bottom: var(--sp-4);
+      }
+      .open-count mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    `,
+  ],
 })
 export class IncidentsComponent {
   private readonly fb = inject(FormBuilder);
@@ -213,6 +228,7 @@ export class IncidentsComponent {
   protected readonly searchControl = new FormControl('', { nonNullable: true });
 
   protected readonly priorities = computed(() => [...new Set(this.incidents().map((i) => i.priority))].sort());
+  protected readonly openCount = computed(() => this.incidents().filter((i) => i.status === 'OPEN').length);
 
   protected readonly filtered = computed(() => {
     const priority = this.priorityFilter.value;
