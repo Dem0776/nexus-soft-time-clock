@@ -12,8 +12,10 @@ export interface GeofenceRequest {
   radiusM: number;
 }
 
+/** Si se envía `expiresAt`, tiene prioridad sobre `ttlMinutes` (vigencia por fecha exacta). */
 export interface QrRequest {
   ttlMinutes?: number;
+  expiresAt?: string;
 }
 
 export interface QrToken {

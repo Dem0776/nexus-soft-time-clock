@@ -1,4 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -8,6 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 
 import { EmptyStateComponent } from '../../../core/ui/empty-state.component';
@@ -17,7 +19,7 @@ import { Role } from '../roles/role.models';
 import { RoleService } from '../roles/role.service';
 import { UserEditDialogComponent } from './user-edit-dialog.component';
 import { UserFormDialogComponent } from './user-form-dialog.component';
-import { User } from './user.models';
+import { USER_STATUSES, User } from './user.models';
 import { UserService } from './user.service';
 
 /** Administración de usuarios del tenant (RF-06, RF-22): alta y edición (perfil, estado, roles) en modal. */
@@ -34,6 +36,7 @@ import { UserService } from './user.service';
     MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
+    MatSelectModule,
     MatProgressBarModule,
     PageHeaderComponent,
     StatusChipComponent,
@@ -54,6 +57,20 @@ import { UserService } from './user.service';
             <mat-label>Buscar por nombre o correo</mat-label>
             <input matInput [formControl]="searchControl" (keyup.enter)="applySearch()" />
           </mat-form-field>
+          <mat-form-field appearance="outline" style="width:170px">
+            <mat-label>Estado</mat-label>
+            <mat-select [formControl]="statusFilter">
+              <mat-option value="">Todos</mat-option>
+              @for (s of statuses; track s) { <mat-option [value]="s">{{ s }}</mat-option> }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline" style="width:170px">
+            <mat-label>Rol</mat-label>
+            <mat-select [formControl]="roleFilter">
+              <mat-option value="">Todos</mat-option>
+              @for (r of roleOptions(); track r) { <mat-option [value]="r">{{ r }}</mat-option> }
+            </mat-select>
+          </mat-form-field>
           <button mat-stroked-button type="button" (click)="applySearch()">Buscar</button>
         </div>
 
@@ -61,7 +78,7 @@ import { UserService } from './user.service';
         @if (error()) { <p class="error-text">{{ error() }}</p> }
 
         <div class="table-wrap">
-          <table mat-table [dataSource]="users()" style="width:100%">
+          <table mat-table [dataSource]="filtered()" style="width:100%">
             <ng-container matColumnDef="email">
               <th mat-header-cell *matHeaderCellDef>Correo</th>
               <td mat-cell *matCellDef="let u">{{ u.email }}</td>
@@ -94,7 +111,7 @@ import { UserService } from './user.service';
           </table>
         </div>
 
-        @if (!loading() && users().length === 0) {
+        @if (!loading() && filtered().length === 0) {
           <app-empty-state icon="group" message="No hay usuarios para mostrar." />
         }
 
@@ -115,6 +132,7 @@ export class UsersComponent {
   private readonly roleService = inject(RoleService);
   private readonly dialog = inject(MatDialog);
 
+  protected readonly statuses = USER_STATUSES;
   protected readonly columns = ['email', 'name', 'employeeCode', 'status', 'roles', 'actions'];
   protected readonly users = signal<User[]>([]);
   protected readonly loading = signal(false);
@@ -128,6 +146,23 @@ export class UsersComponent {
   protected readonly assignableRoles = signal<Role[]>([]);
 
   protected readonly searchControl = this.fb.nonNullable.control('');
+  protected readonly statusFilter = this.fb.nonNullable.control('');
+  protected readonly roleFilter = this.fb.nonNullable.control('');
+
+  private readonly statusFilterValue = toSignal(this.statusFilter.valueChanges, { initialValue: '' });
+  private readonly roleFilterValue = toSignal(this.roleFilter.valueChanges, { initialValue: '' });
+
+  protected readonly roleOptions = computed(() => [...new Set(this.users().flatMap((u) => u.roles))].sort());
+
+  protected readonly filtered = computed(() => {
+    const status = this.statusFilterValue();
+    const role = this.roleFilterValue();
+    return this.users().filter((u) => {
+      if (status && u.status !== status) return false;
+      if (role && !u.roles.includes(role)) return false;
+      return true;
+    });
+  });
 
   constructor() {
     this.roleService.list().subscribe({

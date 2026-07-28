@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { forkJoin } from 'rxjs';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -19,7 +20,7 @@ import { User } from '../users/user.models';
 import { UserService } from '../users/user.service';
 import { WorkSite } from '../work-sites/work-site.models';
 import { WorkSiteService } from '../work-sites/work-site.service';
-import { SCHEDULE_STATUSES, Assignment, Schedule, Shift } from './scheduling.models';
+import { Assignment, Schedule, Shift } from './scheduling.models';
 import { SchedulingService } from './scheduling.service';
 
 /** Administración de horarios, turnos y asignaciones (RF-08). Requiere {@code schedule:manage}. */
@@ -43,7 +44,7 @@ import { SchedulingService } from './scheduling.service';
   ],
   template: `
     <app-page-header title="Horarios y turnos" subtitle="Define y administra los horarios y turnos utilizados por los colaboradores">
-      <button mat-flat-button color="primary" (click)="startCreateSchedule()">
+      <button mat-flat-button color="primary" (click)="router.navigate(['/scheduling/new'])">
         <mat-icon>add</mat-icon> Nuevo horario
       </button>
     </app-page-header>
@@ -72,7 +73,7 @@ import { SchedulingService } from './scheduling.service';
                     <ng-container matColumnDef="actions">
                       <th mat-header-cell *matHeaderCellDef></th>
                       <td mat-cell *matCellDef="let s" style="text-align:right;white-space:nowrap">
-                        <button mat-icon-button (click)="editSchedule(s); $event.stopPropagation()" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+                        <button mat-icon-button (click)="editSchedule(s); $event.stopPropagation()" aria-label="Editar"><mat-icon>chevron_right</mat-icon></button>
                       </td>
                     </ng-container>
                     <tr mat-header-row *matHeaderRowDef="scheduleColumns"></tr>
@@ -149,45 +150,6 @@ import { SchedulingService } from './scheduling.service';
               </mat-card>
             }
           </div>
-
-          @if (showScheduleForm()) {
-            <aside class="split-drawer">
-              <div class="drawer-header">
-                <div class="titles"><h3>{{ editingScheduleId() ? 'Editar horario' : 'Nuevo horario' }}</h3></div>
-                <button mat-icon-button (click)="resetScheduleForm()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
-              </div>
-              <div class="drawer-body">
-                <form [formGroup]="scheduleForm" style="display:flex;flex-direction:column">
-                  <mat-form-field appearance="outline" class="drawer-field">
-                    <mat-label>Código</mat-label>
-                    <input matInput formControlName="code" />
-                  </mat-form-field>
-                  <mat-form-field appearance="outline" class="drawer-field">
-                    <mat-label>Nombre</mat-label>
-                    <input matInput formControlName="name" />
-                  </mat-form-field>
-                  <mat-form-field appearance="outline" class="drawer-field">
-                    <mat-label>Zona horaria</mat-label>
-                    <input matInput formControlName="timezone" placeholder="America/Lima" />
-                  </mat-form-field>
-                  @if (editingScheduleId()) {
-                    <mat-form-field appearance="outline" class="drawer-field">
-                      <mat-label>Estado</mat-label>
-                      <mat-select formControlName="status">
-                        @for (s of scheduleStatuses; track s) { <mat-option [value]="s">{{ s }}</mat-option> }
-                      </mat-select>
-                    </mat-form-field>
-                  }
-                </form>
-              </div>
-              <div class="drawer-actions">
-                <button mat-button (click)="resetScheduleForm()">Cancelar</button>
-                <button mat-flat-button color="primary" [disabled]="scheduleForm.invalid" (click)="saveSchedule()">
-                  {{ editingScheduleId() ? 'Guardar' : 'Crear' }}
-                </button>
-              </div>
-            </aside>
-          }
         </div>
       </mat-tab>
 
@@ -290,8 +252,8 @@ export class SchedulingComponent {
   private readonly userService = inject(UserService);
   private readonly workSiteService = inject(WorkSiteService);
   private readonly notify = inject(NotificationService);
+  protected readonly router = inject(Router);
 
-  protected readonly scheduleStatuses = SCHEDULE_STATUSES;
   protected readonly scheduleColumns = ['code', 'name', 'status', 'actions'];
   protected readonly shiftColumns = ['name', 'time', 'tolerance', 'actions'];
   protected readonly assignmentColumns = ['shiftId', 'workSiteId', 'range'];
@@ -304,17 +266,8 @@ export class SchedulingComponent {
   protected readonly assignShifts = signal<Shift[]>([]);
   protected readonly shiftsById = signal<Record<string, Shift>>({});
   protected readonly selectedSchedule = signal<Schedule | null>(null);
-  protected readonly showScheduleForm = signal(false);
-  protected readonly editingScheduleId = signal<string | null>(null);
   protected readonly editingShiftId = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
-
-  protected readonly scheduleForm = this.fb.nonNullable.group({
-    code: ['', [Validators.required]],
-    name: ['', [Validators.required]],
-    timezone: [''],
-    status: ['ACTIVE'],
-  });
 
   protected readonly shiftForm = this.fb.nonNullable.group({
     name: ['', [Validators.required]],
@@ -409,53 +362,8 @@ export class SchedulingComponent {
     return this.workSites().find((w) => w.id === workSiteId)?.name ?? workSiteId;
   }
 
-  protected startCreateSchedule(): void {
-    this.editingScheduleId.set(null);
-    this.scheduleForm.controls.code.enable();
-    this.scheduleForm.reset({ status: 'ACTIVE' });
-    this.showScheduleForm.set(true);
-  }
-
-  protected saveSchedule(): void {
-    if (this.scheduleForm.invalid) {
-      return;
-    }
-    const raw = this.scheduleForm.getRawValue();
-    const editId = this.editingScheduleId();
-    const request$ = editId
-      ? this.service.updateSchedule(editId, {
-          name: raw.name,
-          timezone: raw.timezone || undefined,
-          status: raw.status as Schedule['status'],
-        })
-      : this.service.createSchedule({ code: raw.code, name: raw.name, timezone: raw.timezone || undefined });
-    request$.subscribe({
-      next: () => {
-        this.notify.success(editId ? 'Horario actualizado.' : 'Horario creado.');
-        this.resetScheduleForm();
-        this.reloadSchedules();
-      },
-      error: () => this.notify.error('No se pudo guardar el horario.'),
-    });
-  }
-
   protected editSchedule(schedule: Schedule): void {
-    this.editingScheduleId.set(schedule.id);
-    this.scheduleForm.reset({
-      code: schedule.code,
-      name: schedule.name,
-      timezone: schedule.timezone ?? '',
-      status: schedule.status,
-    });
-    this.scheduleForm.controls.code.disable();
-    this.showScheduleForm.set(true);
-  }
-
-  protected resetScheduleForm(): void {
-    this.showScheduleForm.set(false);
-    this.editingScheduleId.set(null);
-    this.scheduleForm.controls.code.enable();
-    this.scheduleForm.reset({ status: 'ACTIVE' });
+    void this.router.navigate(['/scheduling', schedule.id, 'edit']);
   }
 
   protected selectSchedule(schedule: Schedule): void {

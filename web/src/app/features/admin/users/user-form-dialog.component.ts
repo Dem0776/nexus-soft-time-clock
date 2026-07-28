@@ -10,7 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { catchError, map, of, switchMap } from 'rxjs';
 
 import { NotificationService } from '../../../core/ui/notification.service';
-import { Role } from '../roles/role.models';
+import { rankOf, Role } from '../roles/role.models';
 import { EmployeeProfile, GENDERS } from './employee-profile.models';
 import { EmployeeProfileService } from './employee-profile.service';
 import { UserService } from './user.service';
@@ -150,7 +150,9 @@ export interface UserFormData {
             <mat-label>Roles</mat-label>
             <mat-select formControlName="roleCodes" multiple>
               @for (role of data.assignableRoles; track role.code) {
-                <mat-option [value]="role.code">{{ role.name }}</mat-option>
+                <mat-option [value]="role.code">
+                  {{ role.name }} <span class="rank-badge" [class]="'tier-' + rankTier(role.code)">{{ rank(role.code) }}</span>
+                </mat-option>
               }
             </mat-select>
             <mat-hint>Solo puedes asignar roles de rango inferior al tuyo.</mat-hint>
@@ -207,6 +209,15 @@ export class UserFormDialogComponent {
   protected readonly genders = GENDERS;
   protected readonly showPw = signal(false);
   protected readonly saving = signal(false);
+  protected readonly rank = rankOf;
+
+  protected rankTier(code: string): 1 | 2 | 3 | 4 {
+    const value = rankOf(code);
+    if (value >= 80) return 1;
+    if (value >= 60) return 2;
+    if (value >= 40) return 3;
+    return 4;
+  }
 
   protected readonly form = this.fb.nonNullable.group({
     // personales

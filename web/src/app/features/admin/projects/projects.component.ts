@@ -1,36 +1,28 @@
 import { Component, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 
 import { EmptyStateComponent } from '../../../core/ui/empty-state.component';
-import { NotificationService } from '../../../core/ui/notification.service';
 import { PageHeaderComponent } from '../../../core/ui/page-header.component';
 import { StatusChipComponent } from '../../../core/ui/status-chip.component';
-import { PROJECT_STATUSES, Project } from './project.models';
+import { Project } from './project.models';
 import { ProjectService } from './project.service';
 
-/** Administración de proyectos (RF-23): listado, alta y edición. */
+/** Catálogo de proyectos (RF-23). Alta y edición viven en páginas propias con breadcrumb. */
 @Component({
   selector: 'app-projects',
   standalone: true,
   imports: [
-    ReactiveFormsModule,
     MatCardModule,
     MatTableModule,
     MatPaginatorModule,
     MatButtonModule,
     MatIconModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
     MatProgressBarModule,
     PageHeaderComponent,
     StatusChipComponent,
@@ -38,131 +30,72 @@ import { ProjectService } from './project.service';
   ],
   template: `
     <app-page-header title="Proyectos" subtitle="Administra los proyectos de la organización">
-      <button mat-flat-button color="primary" (click)="startCreate()">
+      <button mat-flat-button color="primary" (click)="router.navigate(['/projects/new'])">
         <mat-icon>add</mat-icon> Nuevo proyecto
       </button>
     </app-page-header>
 
-    <div class="split-layout">
-      <div class="split-main">
-        <mat-card>
-          <mat-card-content>
-            @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
-            @if (error()) { <p class="error-text">{{ error() }}</p> }
+    <mat-card>
+      <mat-card-content>
+        @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+        @if (error()) { <p class="error-text">{{ error() }}</p> }
 
-            <div class="table-wrap">
-              <table mat-table [dataSource]="projects()" style="width:100%">
-                <ng-container matColumnDef="code">
-                  <th mat-header-cell *matHeaderCellDef>Código</th>
-                  <td mat-cell *matCellDef="let p">{{ p.code }}</td>
-                </ng-container>
-                <ng-container matColumnDef="name">
-                  <th mat-header-cell *matHeaderCellDef>Nombre</th>
-                  <td mat-cell *matCellDef="let p">{{ p.name }}</td>
-                </ng-container>
-                <ng-container matColumnDef="status">
-                  <th mat-header-cell *matHeaderCellDef>Estado</th>
-                  <td mat-cell *matCellDef="let p"><app-status-chip [status]="p.status" /></td>
-                </ng-container>
-                <ng-container matColumnDef="dates">
-                  <th mat-header-cell *matHeaderCellDef>Vigencia</th>
-                  <td mat-cell *matCellDef="let p">{{ p.startsOn || '—' }} → {{ p.endsOn || '—' }}</td>
-                </ng-container>
-                <tr mat-header-row *matHeaderRowDef="columns"></tr>
-                <tr mat-row *matRowDef="let row; columns: columns"
-                    (click)="startEdit(row)"
-                    [style.background]="row.id === editingId() ? 'var(--brand-soft)' : ''"
-                    style="cursor:pointer"></tr>
-              </table>
-            </div>
+        <div class="table-wrap">
+          <table mat-table [dataSource]="projects()" style="width:100%">
+            <ng-container matColumnDef="code">
+              <th mat-header-cell *matHeaderCellDef>Código</th>
+              <td mat-cell *matCellDef="let p">{{ p.code }}</td>
+            </ng-container>
+            <ng-container matColumnDef="name">
+              <th mat-header-cell *matHeaderCellDef>Nombre</th>
+              <td mat-cell *matCellDef="let p">{{ p.name }}</td>
+            </ng-container>
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Estado</th>
+              <td mat-cell *matCellDef="let p"><app-status-chip [status]="p.status" /></td>
+            </ng-container>
+            <ng-container matColumnDef="dates">
+              <th mat-header-cell *matHeaderCellDef>Vigencia</th>
+              <td mat-cell *matCellDef="let p">{{ p.startsOn || '—' }} → {{ p.endsOn || '—' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let p" style="text-align:right">
+                <button mat-icon-button aria-label="Editar"><mat-icon>chevron_right</mat-icon></button>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="columns"></tr>
+            <tr mat-row *matRowDef="let row; columns: columns" (click)="edit(row)" style="cursor:pointer"></tr>
+          </table>
+        </div>
 
-            @if (!loading() && projects().length === 0) {
-              <app-empty-state icon="work" message="No hay proyectos para mostrar." />
-            }
+        @if (!loading() && projects().length === 0) {
+          <app-empty-state icon="work" message="No hay proyectos para mostrar." />
+        }
 
-            <mat-paginator
-              [length]="total()"
-              [pageSize]="size()"
-              [pageIndex]="page()"
-              [pageSizeOptions]="[10, 20, 50]"
-              (page)="onPage($event)"
-            />
-          </mat-card-content>
-        </mat-card>
-      </div>
-
-      @if (showForm()) {
-        <aside class="split-drawer">
-          <div class="drawer-header">
-            <div class="titles"><h3>{{ editingId() ? 'Editar proyecto' : 'Nuevo proyecto' }}</h3></div>
-            <button mat-icon-button (click)="cancelForm()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
-          </div>
-          <div class="drawer-body">
-            <form [formGroup]="form" style="display:flex;flex-direction:column">
-              <mat-form-field appearance="outline" class="drawer-field">
-                <mat-label>Código</mat-label>
-                <input matInput formControlName="code" />
-              </mat-form-field>
-              <mat-form-field appearance="outline" class="drawer-field">
-                <mat-label>Nombre</mat-label>
-                <input matInput formControlName="name" />
-              </mat-form-field>
-              @if (editingId()) {
-                <mat-form-field appearance="outline" class="drawer-field">
-                  <mat-label>Estado</mat-label>
-                  <mat-select formControlName="status">
-                    @for (s of statuses; track s) { <mat-option [value]="s">{{ s }}</mat-option> }
-                  </mat-select>
-                </mat-form-field>
-              }
-              <div class="drawer-row">
-                <mat-form-field appearance="outline" class="drawer-field">
-                  <mat-label>Inicio</mat-label>
-                  <input matInput type="date" formControlName="startsOn" />
-                </mat-form-field>
-                <mat-form-field appearance="outline" class="drawer-field">
-                  <mat-label>Fin</mat-label>
-                  <input matInput type="date" formControlName="endsOn" />
-                </mat-form-field>
-              </div>
-            </form>
-          </div>
-          <div class="drawer-actions">
-            <button mat-button (click)="cancelForm()">Cancelar</button>
-            <button mat-flat-button color="primary" [disabled]="form.invalid || loading()" (click)="save()">
-              {{ editingId() ? 'Guardar' : 'Crear' }}
-            </button>
-          </div>
-        </aside>
-      }
-    </div>
+        <mat-paginator
+          [length]="total()"
+          [pageSize]="size()"
+          [pageIndex]="page()"
+          [pageSizeOptions]="[10, 20, 50]"
+          (page)="onPage($event)"
+        />
+      </mat-card-content>
+    </mat-card>
   `,
-  styles: [`.drawer-row { display: flex; gap: var(--sp-3); } .drawer-row mat-form-field { flex: 1; }`],
 })
 export class ProjectsComponent {
-  private readonly fb = inject(FormBuilder);
   private readonly service = inject(ProjectService);
-  private readonly notify = inject(NotificationService);
+  protected readonly router = inject(Router);
 
-  protected readonly columns = ['code', 'name', 'status', 'dates'];
-  protected readonly statuses = PROJECT_STATUSES;
+  protected readonly columns = ['code', 'name', 'status', 'dates', 'actions'];
   protected readonly projects = signal<Project[]>([]);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly showForm = signal(false);
-  protected readonly editingId = signal<string | null>(null);
 
   protected readonly page = signal(0);
   protected readonly size = signal(20);
   protected readonly total = signal(0);
-
-  protected readonly form = this.fb.nonNullable.group({
-    code: ['', [Validators.required]],
-    name: ['', [Validators.required]],
-    status: ['ACTIVE'],
-    startsOn: [''],
-    endsOn: [''],
-  });
 
   constructor() {
     this.reload();
@@ -190,63 +123,7 @@ export class ProjectsComponent {
     this.reload();
   }
 
-  protected startCreate(): void {
-    this.editingId.set(null);
-    this.form.reset({ status: 'ACTIVE' });
-    this.form.controls.code.enable();
-    this.showForm.set(true);
-  }
-
-  protected startEdit(project: Project): void {
-    this.editingId.set(project.id);
-    this.form.reset({
-      code: project.code,
-      name: project.name,
-      status: project.status,
-      startsOn: project.startsOn ?? '',
-      endsOn: project.endsOn ?? '',
-    });
-    this.form.controls.code.disable();
-    this.showForm.set(true);
-  }
-
-  protected cancelForm(): void {
-    this.showForm.set(false);
-    this.editingId.set(null);
-    this.form.controls.code.enable();
-    this.form.reset({ status: 'ACTIVE' });
-  }
-
-  protected save(): void {
-    if (this.form.invalid) {
-      return;
-    }
-    const raw = this.form.getRawValue();
-    this.loading.set(true);
-    const editId = this.editingId();
-    const request$ = editId
-      ? this.service.update(editId, {
-          name: raw.name,
-          status: raw.status as Project['status'],
-          startsOn: raw.startsOn || undefined,
-          endsOn: raw.endsOn || undefined,
-        })
-      : this.service.create({
-          code: raw.code,
-          name: raw.name,
-          startsOn: raw.startsOn || undefined,
-          endsOn: raw.endsOn || undefined,
-        });
-    request$.subscribe({
-      next: () => {
-        this.notify.success(editId ? 'Proyecto actualizado.' : 'Proyecto creado.');
-        this.cancelForm();
-        this.reload();
-      },
-      error: () => {
-        this.loading.set(false);
-        this.notify.error('No se pudo guardar el proyecto.');
-      },
-    });
+  protected edit(project: Project): void {
+    void this.router.navigate(['/projects', project.id, 'edit']);
   }
 }

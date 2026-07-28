@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /** Geocercas y generación/rotación del QR firmado por centro (RF-10, RF-14). Requiere {@code geofence:manage}. */
@@ -37,7 +38,8 @@ public class GeofencingController {
     @ResponseStatus(HttpStatus.CREATED)
     public QrResponse generateQr(@PathVariable UUID workSiteId, @Valid @RequestBody(required = false) QrRequest r) {
         Integer ttlMinutes = r != null ? r.ttlMinutes() : null;
-        return QrResponse.from(geofencing.generateQr(tenant(), workSiteId, ttlMinutes));
+        Instant expiresAt = r != null ? r.expiresAt() : null;
+        return QrResponse.from(geofencing.generateQr(tenant(), workSiteId, ttlMinutes, expiresAt));
     }
 
     private UUID tenant() {

@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -132,7 +134,8 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
 
         // 4) Anti-replay: consumir el nonce del QR (RN-26).
         if (reason == null) {
-            boolean consumed = nonceGuard.tryConsume(tenantId, cmd.workSiteId(), qr.nonce(), recordId);
+            LocalDate today = LocalDate.ofInstant(now, ZoneOffset.UTC);
+            boolean consumed = nonceGuard.tryConsume(tenantId, cmd.workSiteId(), qr.nonce(), userId, today, recordId);
             if (!consumed) {
                 reason = RejectionReason.REPLAY_DETECTED;
             }

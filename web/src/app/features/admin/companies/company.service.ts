@@ -24,6 +24,11 @@ export class CompanyService {
     return this.http.get<Company>(`${this.base}/${id}`);
   }
 
+  /** Empresa del tenant autenticado (para el shell), sin requerir company:manage. */
+  getMine(): Observable<Company> {
+    return this.http.get<Company>(`${this.base}/me`);
+  }
+
   create(request: CreateCompany): Observable<Company> {
     return this.http.post<Company>(this.base, request);
   }

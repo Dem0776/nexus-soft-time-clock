@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Optional;
@@ -31,16 +32,19 @@ public class GeofencingService implements GeofencingUseCase {
     private final QrTokenSignerPort signer;
     private final Clock clock;
     private final long qrTtlSeconds;
+    private final long qrMaxFarExpiryDays;
     private final SecureRandom random = new SecureRandom();
 
     public GeofencingService(GeofenceRepositoryPort geofences, SiteQrTokenRepositoryPort qrTokens,
                              QrTokenSignerPort signer, Clock clock,
-                             @Value("${security.qr.ttl-seconds:120}") long qrTtlSeconds) {
+                             @Value("${security.qr.ttl-seconds:120}") long qrTtlSeconds,
+                             @Value("${security.qr.max-far-expiry-days:366}") long qrMaxFarExpiryDays) {
         this.geofences = geofences;
         this.qrTokens = qrTokens;
         this.signer = signer;
         this.clock = clock;
         this.qrTtlSeconds = qrTtlSeconds;
+        this.qrMaxFarExpiryDays = qrMaxFarExpiryDays;
     }
 
     @Override
@@ -70,10 +74,23 @@ public class GeofencingService implements GeofencingUseCase {
 
     @Override
     @Transactional
-    public GeneratedQr generateQr(UUID tenantId, UUID workSiteId, Integer ttlMinutes) {
-        long ttlSeconds = ttlMinutes != null ? ttlMinutes * 60L : qrTtlSeconds;
+    public GeneratedQr generateQr(UUID tenantId, UUID workSiteId, Integer ttlMinutes, Instant expiresAtOverride) {
         Instant now = clock.instant();
-        Instant expiresAt = now.plusSeconds(ttlSeconds);
+        Instant maxAllowed = now.plus(Duration.ofDays(qrMaxFarExpiryDays));
+        Instant expiresAt;
+        if (expiresAtOverride != null) {
+            if (!expiresAtOverride.isAfter(now)) {
+                throw new DomainException("INVALID_QR_EXPIRY", "La fecha de expiración debe ser futura");
+            }
+            if (expiresAtOverride.isAfter(maxAllowed)) {
+                throw new DomainException("INVALID_QR_EXPIRY",
+                        "La fecha de expiración no puede superar " + qrMaxFarExpiryDays + " días");
+            }
+            expiresAt = expiresAtOverride;
+        } else {
+            long ttlSeconds = ttlMinutes != null ? ttlMinutes * 60L : qrTtlSeconds;
+            expiresAt = now.plusSeconds(ttlSeconds);
+        }
         String nonce = newNonce();
 
         qrTokens.deactivateActiveForSite(workSiteId, tenantId);

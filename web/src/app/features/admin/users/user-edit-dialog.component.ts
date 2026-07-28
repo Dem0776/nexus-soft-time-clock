@@ -13,7 +13,7 @@ import { forkJoin, of } from 'rxjs';
 
 import { NotificationService } from '../../../core/ui/notification.service';
 import { StatusChipComponent } from '../../../core/ui/status-chip.component';
-import { Role } from '../roles/role.models';
+import { rankOf, Role } from '../roles/role.models';
 import { EmployeeProfile, GENDERS } from './employee-profile.models';
 import { EmployeeProfileService } from './employee-profile.service';
 import { USER_STATUSES, User, UserStatus } from './user.models';
@@ -137,7 +137,7 @@ export interface UserEditData {
         <div class="roles-list">
           @for (role of data.assignableRoles; track role.code) {
             <mat-checkbox [checked]="isRole(role.code)" (change)="toggleRole(role.code, $event.checked)">
-              {{ role.name }} <span class="muted">({{ role.code }})</span>
+              {{ role.name }} <span class="rank-badge" [class]="'tier-' + rankTier(role.code)">Rango {{ rank(role.code) }}</span>
             </mat-checkbox>
           }
         </div>
@@ -193,6 +193,15 @@ export class UserEditDialogComponent {
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly roles = signal<string[]>([...this.data.user.roles]);
+  protected readonly rank = rankOf;
+
+  protected rankTier(code: string): 1 | 2 | 3 | 4 {
+    const value = rankOf(code);
+    if (value >= 80) return 1;
+    if (value >= 60) return 2;
+    if (value >= 40) return 3;
+    return 4;
+  }
 
   protected readonly form = this.fb.nonNullable.group({
     gender: [''],

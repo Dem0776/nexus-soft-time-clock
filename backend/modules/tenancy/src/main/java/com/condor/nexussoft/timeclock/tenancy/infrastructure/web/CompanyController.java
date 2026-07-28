@@ -1,5 +1,6 @@
 package com.condor.nexussoft.timeclock.tenancy.infrastructure.web;
 
+import com.condor.nexussoft.timeclock.platform.tenant.TenantContext;
 import com.condor.nexussoft.timeclock.platform.web.PageResponse;
 import com.condor.nexussoft.timeclock.shared.domain.Paged;
 import com.condor.nexussoft.timeclock.tenancy.domain.Company;
@@ -49,6 +50,13 @@ public class CompanyController {
     @GetMapping("/{id}")
     public CompanyResponse get(@PathVariable UUID id) {
         return CompanyResponse.from(companies.get(id));
+    }
+
+    /** Datos de la propia empresa (nombre, timezone, locale) para el shell del panel — cualquier usuario autenticado del tenant. */
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    public CompanyResponse getMine() {
+        return CompanyResponse.from(companies.get(TenantContext.require()));
     }
 
     @PutMapping("/{id}")

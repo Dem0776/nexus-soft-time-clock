@@ -2,16 +2,16 @@
 # Apunta a los servicios del docker-compose de infra/.
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/nexus
-    username: nexus
-    password: nexus
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/nexus}
+    username: ${DB_USER:nexus}
+    password: ${DB_PASSWORD:nexus}
   data:
     redis:
-      host: localhost
+      host: ${REDIS_HOST:localhost}
       port: 6379
   mail:
-    host: localhost
-    port: 1025   # MailHog
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}   # MailHog
 
 logging:
   level:
