@@ -29,6 +29,10 @@ export class SchedulingService {
     return this.http.get<PageResponse<Schedule>>(`${this.base}/schedules`, { params });
   }
 
+  getSchedule(id: string): Observable<Schedule> {
+    return this.http.get<Schedule>(`${this.base}/schedules/${id}`);
+  }
+
   createSchedule(request: CreateSchedule): Observable<Schedule> {
     return this.http.post<Schedule>(`${this.base}/schedules`, request);
   }

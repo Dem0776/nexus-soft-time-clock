@@ -1,6 +1,10 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { MatButtonModule } from '@angular/material/button';
+import { MatSidenav } from '@angular/material/sidenav';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
@@ -36,7 +40,6 @@ import { CompanyService } from '../features/admin/companies/company.service';
   styles: [
     `
       .layout { display: flex; flex-direction: column; height: 100vh; }
-      .content { padding: 24px; }
       .brand-word { font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
 
       mat-toolbar {
@@ -48,8 +51,15 @@ import { CompanyService } from '../features/admin/companies/company.service';
 
       mat-sidenav {
         width: 264px;
+        max-width: 82vw;
         display: flex;
         flex-direction: column;
+      }
+      .content { padding: 24px; }
+      @media (max-width: 720px) {
+        .content { padding: 16px; }
+        .brand-word { display: none; }
+        .user-btn span:not(.avatar) { display: none; }
       }
       .brand {
         display: flex; align-items: center; gap: 12px;
@@ -149,7 +159,7 @@ import { CompanyService } from '../features/admin/companies/company.service';
       </mat-toolbar>
 
       <mat-sidenav-container style="flex:1 1 auto">
-        <mat-sidenav #drawer mode="side" opened>
+        <mat-sidenav #drawer [mode]="isHandset() ? 'over' : 'side'" [opened]="!isHandset()" (click)="closeOnHandset(drawer)">
           <div class="brand">
             <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
               <defs>
@@ -277,11 +287,16 @@ export class MainLayoutComponent {
   private readonly companyService = inject(CompanyService);
   private readonly store = inject(AuthStore);
   private readonly router = inject(Router);
+  private readonly breakpointObserver = inject(BreakpointObserver);
   protected readonly theme = inject(ThemeService);
 
   protected readonly user = this.store.user;
   protected readonly company = signal<Company | null>(null);
   protected readonly isDark = computed(() => this.theme.theme() === 'dark');
+  /** Bajo este ancho el sidenav se comporta como overlay (se cierra al tocar afuera o al navegar). */
+  protected readonly isHandset = toSignal(this.breakpointObserver.observe('(max-width: 900px)').pipe(map((r) => r.matches)), {
+    initialValue: false,
+  });
   protected readonly hasAdmin = computed(
     () =>
       this.can('company:manage') ||
@@ -318,6 +333,12 @@ export class MainLayoutComponent {
     const parts = name.split(/\s+/).filter(Boolean);
     const letters = parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2);
     return letters.toUpperCase();
+  }
+
+  protected closeOnHandset(drawer: MatSidenav): void {
+    if (this.isHandset()) {
+      void drawer.close();
+    }
   }
 
   protected can(permission: string): boolean {

@@ -1,5 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -230,9 +231,12 @@ export class IncidentsComponent {
   protected readonly priorities = computed(() => [...new Set(this.incidents().map((i) => i.priority))].sort());
   protected readonly openCount = computed(() => this.incidents().filter((i) => i.status === 'OPEN').length);
 
+  private readonly priorityFilterValue = toSignal(this.priorityFilter.valueChanges, { initialValue: '' });
+  private readonly searchValue = toSignal(this.searchControl.valueChanges, { initialValue: '' });
+
   protected readonly filtered = computed(() => {
-    const priority = this.priorityFilter.value;
-    const search = this.searchControl.value.trim().toLowerCase();
+    const priority = this.priorityFilterValue();
+    const search = this.searchValue().trim().toLowerCase();
     return this.incidents().filter((i) => {
       if (priority && i.priority !== priority) return false;
       if (!search) return true;
