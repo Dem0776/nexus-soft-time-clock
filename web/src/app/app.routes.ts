@@ -92,6 +92,17 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/event-types/event-types.component').then((m) => m.EventTypesComponent),
       },
+      {
+        path: 'vacations',
+        canActivate: [requirePermission('vacation:approve')],
+        loadComponent: () => import('./features/vacations/vacations.component').then((m) => m.VacationsComponent),
+      },
+      {
+        path: 'settings',
+        canActivate: [requirePermission('vacation:manage')],
+        loadComponent: () =>
+          import('./features/admin/settings/settings.component').then((m) => m.SettingsComponent),
+      },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
     ],
   },

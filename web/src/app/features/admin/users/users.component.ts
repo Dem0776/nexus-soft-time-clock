@@ -1,8 +1,9 @@
 import { Component, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -18,12 +19,11 @@ import { PageHeaderComponent } from '../../../core/ui/page-header.component';
 import { StatusChipComponent } from '../../../core/ui/status-chip.component';
 import { Role } from '../roles/role.models';
 import { RoleService } from '../roles/role.service';
+import { UserFormDialogComponent } from './user-form-dialog.component';
 import { USER_STATUSES, User, UserStatus } from './user.models';
 import { UserService } from './user.service';
 
-type DrawerMode = 'create' | 'detail' | null;
-
-/** Administración de usuarios del tenant (RF-06, RF-22): alta, listado, estado y asignación de roles. */
+/** Administración de usuarios del tenant (RF-06, RF-22): alta (con perfil), listado, estado y roles. */
 @Component({
   selector: 'app-users',
   standalone: true,
@@ -35,6 +35,7 @@ type DrawerMode = 'create' | 'detail' | null;
     MatButtonModule,
     MatIconModule,
     MatMenuModule,
+    MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -45,8 +46,8 @@ type DrawerMode = 'create' | 'detail' | null;
     EmptyStateComponent,
   ],
   template: `
-    <app-page-header title="Usuarios" subtitle="Administra los usuarios que tienen acceso al sistema">
-      <button mat-flat-button color="primary" (click)="startCreate()">
+    <app-page-header title="Usuarios" subtitle="Administra las personas con acceso al sistema y su información laboral">
+      <button mat-flat-button color="primary" (click)="openCreate()">
         <mat-icon>person_add</mat-icon> Nuevo usuario
       </button>
     </app-page-header>
@@ -118,52 +119,7 @@ type DrawerMode = 'create' | 'detail' | null;
         </mat-card>
       </div>
 
-      @if (drawerMode() === 'create') {
-        <aside class="split-drawer">
-          <div class="drawer-header">
-            <div class="titles"><h3>Nuevo usuario</h3><p class="sub">Alta manual con contraseña inicial</p></div>
-            <button mat-icon-button (click)="closeDrawer()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
-          </div>
-          <div class="drawer-body">
-            <form [formGroup]="form" style="display:flex;flex-direction:column">
-              <mat-form-field appearance="outline" class="drawer-field">
-                <mat-label>Correo</mat-label>
-                <input matInput type="email" formControlName="email" />
-              </mat-form-field>
-              <mat-form-field appearance="outline" class="drawer-field">
-                <mat-label>Nombre</mat-label>
-                <input matInput formControlName="firstName" />
-              </mat-form-field>
-              <mat-form-field appearance="outline" class="drawer-field">
-                <mat-label>Apellido</mat-label>
-                <input matInput formControlName="lastName" />
-              </mat-form-field>
-              <mat-form-field appearance="outline" class="drawer-field">
-                <mat-label>Código de empleado</mat-label>
-                <input matInput formControlName="employeeCode" />
-              </mat-form-field>
-              <mat-form-field appearance="outline" class="drawer-field">
-                <mat-label>Contraseña</mat-label>
-                <input matInput type="password" formControlName="password" autocomplete="new-password" />
-              </mat-form-field>
-              <mat-form-field appearance="outline" class="drawer-field">
-                <mat-label>Roles</mat-label>
-                <mat-select formControlName="roleCodes" multiple>
-                  @for (role of assignableRoles(); track role.code) {
-                    <mat-option [value]="role.code">{{ role.name }}</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-            </form>
-          </div>
-          <div class="drawer-actions">
-            <button mat-button (click)="closeDrawer()">Cancelar</button>
-            <button mat-flat-button color="primary" [disabled]="form.invalid || loading()" (click)="create()">Crear</button>
-          </div>
-        </aside>
-      }
-
-      @if (drawerMode() === 'detail' && selectedUser(); as u) {
+      @if (selectedUser(); as u) {
         <aside class="split-drawer">
           <div class="drawer-header">
             <div class="titles"><h3>{{ u.firstName }} {{ u.lastName }}</h3><p class="sub">{{ u.email }}</p></div>
@@ -216,13 +172,13 @@ export class UsersComponent {
   private readonly service = inject(UserService);
   private readonly roleService = inject(RoleService);
   private readonly notify = inject(NotificationService);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly columns = ['email', 'name', 'employeeCode', 'status', 'roles', 'actions'];
   protected readonly statuses = USER_STATUSES;
   protected readonly users = signal<User[]>([]);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly drawerMode = signal<DrawerMode>(null);
   protected readonly selectedUser = signal<User | null>(null);
   protected readonly pendingRoles = signal<string[]>([]);
 
@@ -230,23 +186,10 @@ export class UsersComponent {
   protected readonly size = signal(20);
   protected readonly total = signal(0);
 
-  /**
-   * Roles que el operador puede otorgar (HU-21 CA1). El backend (RoleController + RoleGrantPolicy)
-   * ya filtra el catálogo por la potestad de delegación del solicitante, así que la UI consume ese
-   * listado tal cual: no se re-deriva la jerarquía en el cliente.
-   */
+  /** Roles que el operador puede otorgar (el backend ya filtra por potestad de delegación, HU-21). */
   protected readonly assignableRoles = signal<Role[]>([]);
 
   protected readonly searchControl = this.fb.nonNullable.control('');
-
-  protected readonly form = this.fb.nonNullable.group({
-    email: ['', [Validators.required, Validators.email]],
-    firstName: ['', [Validators.required]],
-    lastName: ['', [Validators.required]],
-    employeeCode: [''],
-    password: ['', [Validators.required, Validators.minLength(8)]],
-    roleCodes: [[] as string[]],
-  });
 
   constructor() {
     this.roleService.list().subscribe({
@@ -284,42 +227,20 @@ export class UsersComponent {
     this.reload();
   }
 
-  protected startCreate(): void {
-    this.form.reset({ roleCodes: [] });
-    this.drawerMode.set('create');
+  protected openCreate(): void {
+    const ref = this.dialog.open(UserFormDialogComponent, {
+      width: '760px',
+      maxWidth: '96vw',
+      autoFocus: false,
+      data: { assignableRoles: this.assignableRoles() },
+    });
+    ref.afterClosed().subscribe((created) => {
+      if (created) this.reload();
+    });
   }
 
   protected closeDrawer(): void {
-    this.drawerMode.set(null);
     this.selectedUser.set(null);
-  }
-
-  protected create(): void {
-    if (this.form.invalid) {
-      return;
-    }
-    const raw = this.form.getRawValue();
-    this.loading.set(true);
-    this.service
-      .create({
-        email: raw.email,
-        firstName: raw.firstName,
-        lastName: raw.lastName,
-        employeeCode: raw.employeeCode || undefined,
-        password: raw.password,
-        roleCodes: raw.roleCodes.length ? raw.roleCodes : undefined,
-      })
-      .subscribe({
-        next: () => {
-          this.notify.success('Usuario creado.');
-          this.closeDrawer();
-          this.reload();
-        },
-        error: () => {
-          this.loading.set(false);
-          this.notify.error('No se pudo crear el usuario.');
-        },
-      });
   }
 
   protected changeStatus(user: User, status: UserStatus): void {
@@ -336,7 +257,6 @@ export class UsersComponent {
   protected openDetail(user: User): void {
     this.selectedUser.set(user);
     this.pendingRoles.set([...user.roles]);
-    this.drawerMode.set('detail');
   }
 
   protected isRoleSelected(code: string): boolean {

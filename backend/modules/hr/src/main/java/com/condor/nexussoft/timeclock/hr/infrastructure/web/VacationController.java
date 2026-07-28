@@ -1,0 +1,114 @@
+package com.condor.nexussoft.timeclock.hr.infrastructure.web;
+
+import com.condor.nexussoft.timeclock.hr.domain.PagedResult;
+import com.condor.nexussoft.timeclock.hr.domain.VacationPolicy;
+import com.condor.nexussoft.timeclock.hr.domain.VacationRequest;
+import com.condor.nexussoft.timeclock.hr.domain.VacationStatus;
+import com.condor.nexussoft.timeclock.hr.domain.port.in.VacationPolicyUseCase;
+import com.condor.nexussoft.timeclock.hr.domain.port.in.VacationRequestUseCase;
+import com.condor.nexussoft.timeclock.hr.infrastructure.persistence.EmployeeDirectoryQuery;
+import com.condor.nexussoft.timeclock.hr.infrastructure.web.dto.PageResponse;
+import com.condor.nexussoft.timeclock.hr.infrastructure.web.dto.VacationDtos.*;
+import jakarta.validation.Valid;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+/**
+ * Vacaciones: política del tenant y bandeja de solicitudes (RF-09 ampliado).
+ *
+ * NOTA: si tus controllers usan un context-path, elimina el prefijo "/api/v1".
+ */
+@RestController
+@RequestMapping("/api/v1/vacations")
+public class VacationController {
+
+    private final VacationPolicyUseCase policyUseCase;
+    private final VacationRequestUseCase requestUseCase;
+    private final EmployeeDirectoryQuery directory;
+
+    public VacationController(VacationPolicyUseCase policyUseCase,
+                             VacationRequestUseCase requestUseCase,
+                             EmployeeDirectoryQuery directory) {
+        this.policyUseCase = policyUseCase;
+        this.requestUseCase = requestUseCase;
+        this.directory = directory;
+    }
+
+    // ---- Política ----
+
+    @GetMapping("/policy")
+    @PreAuthorize("hasAnyAuthority('vacation:manage','vacation:approve')")
+    public VacationPolicyDto getPolicy(Authentication auth) {
+        VacationPolicy p = policyUseCase.get(CurrentUser.tenantId(auth));
+        return new VacationPolicyDto(p.daysPerYear(), p.requireApproval(), p.countBusinessDaysOnly());
+    }
+
+    @PutMapping("/policy")
+    @PreAuthorize("hasAuthority('vacation:manage')")
+    public VacationPolicyDto updatePolicy(@Valid @RequestBody VacationPolicyDto body, Authentication auth) {
+        VacationPolicy p = policyUseCase.update(new VacationPolicyUseCase.UpdatePolicyCommand(
+                CurrentUser.tenantId(auth), body.daysPerYear(), body.requireApproval(), body.countBusinessDaysOnly()));
+        return new VacationPolicyDto(p.daysPerYear(), p.requireApproval(), p.countBusinessDaysOnly());
+    }
+
+    // ---- Solicitudes ----
+
+    @GetMapping("/requests")
+    @PreAuthorize("hasAuthority('vacation:approve')")
+    public PageResponse<VacationRequestResponse> list(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            Authentication auth) {
+        VacationStatus st = (status == null || status.isBlank()) ? null : VacationStatus.valueOf(status.trim().toUpperCase());
+        PagedResult<VacationRequest> result = requestUseCase.list(CurrentUser.tenantId(auth), st, search, page, size);
+
+        Map<UUID, EmployeeDirectoryQuery.Info> names = directory.byIds(
+                result.content().stream().map(VacationRequest::userId).collect(Collectors.toSet()));
+        List<VacationRequestResponse> content = result.content().stream()
+                .map(r -> toResponse(r, names.get(r.userId())))
+                .toList();
+        return PageResponse.of(content, result.page(), result.size(), result.totalElements());
+    }
+
+    @PostMapping("/requests")
+    @PreAuthorize("hasAnyAuthority('vacation:request','vacation:approve')")
+    public VacationRequestResponse create(@Valid @RequestBody CreateVacationRequest body, Authentication auth) {
+        UUID tenantId = CurrentUser.tenantId(auth);
+        UUID userId = (body.userId() == null || body.userId().isBlank())
+                ? CurrentUser.userId(auth) : UUID.fromString(body.userId());
+        VacationRequest r = requestUseCase.create(new VacationRequestUseCase.CreateCommand(
+                tenantId, userId, body.startDate(), body.endDate(), body.reason()));
+        return toResponse(r, directory.byIds(List.of(userId)).get(userId));
+    }
+
+    @PatchMapping("/requests/{id}/resolve")
+    @PreAuthorize("hasAuthority('vacation:approve')")
+    public VacationRequestResponse resolve(@PathVariable UUID id,
+                                           @Valid @RequestBody ResolveVacationRequest body,
+                                           Authentication auth) {
+        boolean approve = "APPROVED".equalsIgnoreCase(body.resolution());
+        if (!approve && !"REJECTED".equalsIgnoreCase(body.resolution())) {
+            throw new IllegalArgumentException("resolution debe ser APPROVED o REJECTED.");
+        }
+        VacationRequest r = requestUseCase.resolve(new VacationRequestUseCase.ResolveCommand(
+                CurrentUser.tenantId(auth), id, CurrentUser.userId(auth), approve, body.note()));
+        return toResponse(r, directory.byIds(List.of(r.userId())).get(r.userId()));
+    }
+
+    private static VacationRequestResponse toResponse(VacationRequest r, EmployeeDirectoryQuery.Info info) {
+        return new VacationRequestResponse(
+                r.id().toString(), r.userId().toString(),
+                info == null ? null : info.fullName(),
+                info == null ? null : info.employeeCode(),
+                r.startDate(), r.endDate(), r.days(), r.reason(), r.status().name(),
+                r.resolutionNote(), r.resolvedBy() == null ? null : r.resolvedBy().toString(),
+                r.resolvedAt(), r.createdAt());
+    }
+}
