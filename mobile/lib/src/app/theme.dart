@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 /// el [ColorScheme] completo para claro/oscuro. Los tokens de componentes
 /// (campos, botones, tarjetas, appbars) se definen en [_themeFor] para dar una
 /// apariencia consistente y profesional en toda la app.
-const Color _seed = Color(0xFF1565C0);
+const Color _seed = Color(0xFF3949AB); // Índigo de marca (alineado al panel web)
 
 /// Radios de esquina usados en toda la UI para mantener una forma coherente.
 const double _radiusField = 12;

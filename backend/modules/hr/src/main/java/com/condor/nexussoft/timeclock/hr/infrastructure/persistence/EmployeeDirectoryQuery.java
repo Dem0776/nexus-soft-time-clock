@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class EmployeeDirectoryQuery {
 
-    public record Info(String fullName, String employeeCode) {}
+    public record Info(String fullName, String employeeCode, String email) {}
 
     @PersistenceContext
     private EntityManager em;
@@ -30,7 +30,7 @@ public class EmployeeDirectoryQuery {
         }
         @SuppressWarnings("unchecked")
         var rows = em.createNativeQuery(
-                        "select id, trim(concat(first_name, ' ', last_name)) as full_name, employee_code "
+                        "select id, trim(concat(first_name, ' ', last_name)) as full_name, employee_code, email "
                                 + "from users where id in (:ids)")
                 .setParameter("ids", userIds)
                 .getResultList();
@@ -39,7 +39,8 @@ public class EmployeeDirectoryQuery {
             UUID id = (UUID) cols[0];
             String name = cols[1] == null ? null : cols[1].toString();
             String code = cols[2] == null ? null : cols[2].toString();
-            map.put(id, new Info(name, code));
+            String email = cols[3] == null ? null : cols[3].toString();
+            map.put(id, new Info(name, code, email));
         }
         return map;
     }

@@ -4,11 +4,13 @@ import com.condor.nexussoft.timeclock.hr.domain.PagedResult;
 import com.condor.nexussoft.timeclock.hr.domain.VacationRequest;
 import com.condor.nexussoft.timeclock.hr.domain.VacationStatus;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface VacationRequestRepositoryPort {
     PagedResult<VacationRequest> search(UUID tenantId, VacationStatus status, String search, int page, int size);
+    List<VacationRequest> findByUser(UUID tenantId, UUID userId);
     Optional<VacationRequest> find(UUID tenantId, UUID id);
     VacationRequest save(VacationRequest request);
     /** Verdadero si el colaborador ya tiene una solicitud vigente (PENDING/APPROVED) que se traslapa. */

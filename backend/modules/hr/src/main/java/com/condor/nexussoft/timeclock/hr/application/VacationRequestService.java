@@ -11,6 +11,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,12 @@ public class VacationRequestService implements VacationRequestUseCase {
     @Transactional(readOnly = true)
     public PagedResult<VacationRequest> list(UUID tenantId, VacationStatus status, String search, int page, int size) {
         return requests.search(tenantId, status, search, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<VacationRequest> listForUser(UUID tenantId, UUID userId) {
+        return requests.findByUser(tenantId, userId);
     }
 
     @Override

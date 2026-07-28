@@ -43,6 +43,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/reports/reports.component').then((m) => m.ReportsComponent),
       },
       {
+        path: 'attendance-events',
+        canActivate: [requirePermission('report:export')],
+        loadComponent: () =>
+          import('./features/attendance-events/attendance-events.component').then((m) => m.AttendanceEventsComponent),
+      },
+      {
         path: 'audit',
         canActivate: [requirePermission('audit:read')],
         loadComponent: () => import('./features/audit/audit.component').then((m) => m.AuditComponent),

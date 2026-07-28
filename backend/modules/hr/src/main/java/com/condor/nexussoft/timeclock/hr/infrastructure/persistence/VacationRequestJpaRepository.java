@@ -16,6 +16,8 @@ public interface VacationRequestJpaRepository extends JpaRepository<VacationRequ
 
     Page<VacationRequestJpaEntity> findByTenantIdAndStatus(UUID tenantId, VacationStatus status, Pageable pageable);
 
+    List<VacationRequestJpaEntity> findByTenantIdAndUserIdOrderByStartDateDesc(UUID tenantId, UUID userId);
+
     @Query("""
             select count(v) > 0 from VacationRequestJpaEntity v
             where v.tenantId = :tenantId and v.userId = :userId

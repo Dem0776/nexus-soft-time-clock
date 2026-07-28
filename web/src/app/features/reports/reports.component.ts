@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -46,6 +47,7 @@ const NUMERIC_COLUMNS: readonly NumericColumn[] = [
     ReactiveFormsModule,
     MatCardModule,
     MatButtonModule,
+    MatButtonToggleModule,
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
@@ -81,6 +83,11 @@ const NUMERIC_COLUMNS: readonly NumericColumn[] = [
                   <input matInput type="date" formControlName="to" />
                 </mat-form-field>
               </div>
+              <mat-button-toggle-group class="periods" (change)="setPeriod($event.value)" hideSingleSelectionIndicator>
+                <mat-button-toggle value="week">Semana</mat-button-toggle>
+                <mat-button-toggle value="fortnight">Quincena</mat-button-toggle>
+                <mat-button-toggle value="month">Mes</mat-button-toggle>
+              </mat-button-toggle-group>
 
               <span class="spacer"></span>
 
@@ -179,6 +186,7 @@ const NUMERIC_COLUMNS: readonly NumericColumn[] = [
       }
       .toolbar .search { flex: 1 1 320px; }
       .dates { display: flex; gap: var(--sp-2); }
+      .periods { align-self: center; }
       .date { width: 160px; }
       .toolbar-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
       .spacer { flex: 1 1 auto; }
@@ -315,6 +323,30 @@ export class ReportsComponent {
     this.form.valueChanges.pipe(debounceTime(150), takeUntilDestroyed()).subscribe(() => this.pageIndex.set(0));
 
     this.reload();
+  }
+
+  /** Ajusta el rango de fechas a un preset (semana/quincena/mes) y dispara la recarga. */
+  protected setPeriod(p: 'week' | 'fortnight' | 'month'): void {
+    const [from, to] = this.rangeFor(p);
+    this.form.patchValue({ from, to });
+  }
+
+  private rangeFor(p: 'week' | 'fortnight' | 'month'): [string, string] {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const iso = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (p === 'week') {
+      const day = (now.getDay() + 6) % 7;
+      return [iso(new Date(y, m, now.getDate() - day)), iso(new Date(y, m, now.getDate() - day + 6))];
+    }
+    if (p === 'fortnight') {
+      return now.getDate() <= 15
+        ? [iso(new Date(y, m, 1)), iso(new Date(y, m, 15))]
+        : [iso(new Date(y, m, 16)), iso(new Date(y, m + 1, 0))];
+    }
+    return [iso(new Date(y, m, 1)), iso(new Date(y, m + 1, 0))];
   }
 
   /** (Re)carga el reporte para el rango de fechas actual. */

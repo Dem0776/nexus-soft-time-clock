@@ -36,6 +36,12 @@ public class VacationRequestPersistenceAdapter implements VacationRequestReposit
     }
 
     @Override
+    public List<VacationRequest> findByUser(UUID tenantId, UUID userId) {
+        return repository.findByTenantIdAndUserIdOrderByStartDateDesc(tenantId, userId).stream()
+                .map(VacationRequestPersistenceAdapter::toDomain).toList();
+    }
+
+    @Override
     public Optional<VacationRequest> find(UUID tenantId, UUID id) {
         return repository.findById(id)
                 .filter(e -> e.getTenantId().equals(tenantId))
