@@ -159,15 +159,7 @@ import { ThemeService } from '../core/theme/theme.service';
                   <mat-icon matListItemIcon>login</mat-icon>
                   <span matListItemTitle>Entradas y salidas</span>
                 </a>
-                <a
-                  mat-list-item
-                  class="nav-item"
-                  routerLink="/reports/attendance-records"
-                  routerLinkActive="active"
-                >
-                  <mat-icon matListItemIcon>list_alt</mat-icon>
-                  <span matListItemTitle>Registros de asistencia</span>
-                </a>
+                
               }
               @if (can('audit:read')) {
                 <a mat-list-item class="nav-item" routerLink="/audit" routerLinkActive="active">

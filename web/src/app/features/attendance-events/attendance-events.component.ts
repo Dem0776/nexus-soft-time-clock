@@ -5,11 +5,12 @@ import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTableModule } from '@angular/material/table';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import * as XLSX from 'xlsx';
 
 import { EmptyStateComponent } from '../../core/ui/empty-state.component';
 import { PageHeaderComponent } from '../../core/ui/page-header.component';
-import { AttendanceEvent, EVENT_LABELS, EVENT_OPTIONS, STATUS_LABELS } from './attendance-events.models';
+import { AttendanceEvent, EVENT_LABELS, EVENT_OPTIONS, REJECTION_LABELS, STATUS_LABELS } from './attendance-events.models';
 import { AttendanceEventsService } from './attendance-events.service';
 
 type Period = 'week' | 'fortnight' | 'month' | 'range';
@@ -24,7 +25,7 @@ type Period = 'week' | 'fortnight' | 'month' | 'range';
   standalone: true,
   imports: [
     MatCardModule, MatTableModule, MatButtonModule, MatButtonToggleModule, MatIconModule,
-    MatProgressBarModule, PageHeaderComponent, EmptyStateComponent,
+    MatProgressBarModule, MatTooltipModule, PageHeaderComponent, EmptyStateComponent,
   ],
   template: `
     <app-page-header title="Entradas y salidas" subtitle="Registros individuales de asistencia: a qué hora ficha cada persona">
@@ -79,7 +80,7 @@ type Period = 'week' | 'fortnight' | 'month' | 'range';
             </ng-container>
             <ng-container matColumnDef="status">
               <th mat-header-cell *matHeaderCellDef>Estado</th>
-              <td mat-cell *matCellDef="let e"><span class="chip" [class.ok]="e.status === 'ACCEPTED'" [class.bad]="e.status === 'REJECTED'">{{ statusLabel(e.status) }}</span></td>
+              <td mat-cell *matCellDef="let e"><span class="chip" [class.ok]="e.status === 'ACCEPTED'" [class.bad]="e.status === 'REJECTED'" [matTooltip]="rejectionTooltip(e)" [matTooltipDisabled]="!rejectionTooltip(e)">{{ statusLabel(e.status) }}</span></td>
             </ng-container>
 
             <!-- Fila de filtros (Excel) -->
@@ -208,10 +209,10 @@ export class AttendanceEventsComponent {
   }
 
   protected exportExcel(): void {
-    const header = ['Fecha y hora', 'Colaborador', 'Código', 'Evento', 'Centro de trabajo', 'Estado'];
+    const header = ['Fecha y hora', 'Colaborador', 'Código', 'Evento', 'Centro de trabajo', 'Estado', 'Motivo de rechazo'];
     const rows = this.filtered().map((e) => [
       this.fmt(e.serverTime), e.employeeName ?? e.userId, e.employeeCode ?? '',
-      this.eventLabel(e.eventType), e.workSite ?? '', this.statusLabel(e.status),
+      this.eventLabel(e.eventType), e.workSite ?? '', this.statusLabel(e.status), this.rejectionTooltip(e),
     ]);
     const sheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
     const book = XLSX.utils.book_new();
@@ -222,6 +223,12 @@ export class AttendanceEventsComponent {
   // ---- helpers ----
   protected eventLabel(code: string): string { return EVENT_LABELS[code] ?? code; }
   protected statusLabel(code: string): string { return STATUS_LABELS[code] ?? code; }
+
+  /** Motivo de rechazo legible para el tooltip del estado (vacío si no aplica). */
+  protected rejectionTooltip(e: AttendanceEvent): string {
+    if (!e.rejectionReason) return '';
+    return REJECTION_LABELS[e.rejectionReason] ?? e.rejectionReason;
+  }
 
   protected fmt(iso: string): string {
     const d = new Date(iso);

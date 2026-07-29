@@ -7,6 +7,7 @@ export interface AttendanceEvent {
   workSite?: string;
   eventType: string;
   status: string;
+  rejectionReason?: string | null;
 }
 
 /** Etiquetas en español de los tipos de evento. */
@@ -24,4 +25,22 @@ export const STATUS_LABELS: Record<string, string> = {
   ACCEPTED: 'Aceptado',
   REJECTED: 'Rechazado',
   PENDING_REVIEW: 'En revisión',
+};
+
+/** Motivos de rechazo legibles (para el tooltip del estado). */
+export const REJECTION_LABELS: Record<string, string> = {
+  INVALID_QR: 'QR inválido',
+  OUT_OF_GEOFENCE: 'Fuera de la geocerca',
+  LOW_GPS_ACCURACY: 'Precisión de GPS baja',
+  GPS_UNAVAILABLE: 'GPS no disponible',
+  OUT_OF_SCHEDULE: 'Fuera de horario',
+  FRAUD_MOCK_LOCATION: 'Ubicación simulada',
+  FRAUD_ROOTED_DEVICE: 'Dispositivo comprometido',
+  FRAUD_GPS_SPOOF_APP: 'App de suplantación de GPS',
+  REPLAY_DETECTED: 'Registro duplicado',
+  INVALID_SEQUENCE: 'Secuencia inválida',
+  UNTRUSTED_DEVICE: 'Dispositivo no confiable',
+  PHOTO_REQUIRED: 'Falta evidencia fotográfica',
+  BIOMETRIC_REQUIRED: 'Falta verificación biométrica',
+  EVENT_TYPE_DISABLED: 'Tipo de evento deshabilitado',
 };

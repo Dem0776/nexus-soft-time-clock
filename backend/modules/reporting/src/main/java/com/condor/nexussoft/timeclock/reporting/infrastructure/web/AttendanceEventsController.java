@@ -36,7 +36,8 @@ public class AttendanceEventsController {
             String employeeCode,
             String workSite,
             String eventType,
-            String status) {}
+            String status,
+            String rejectionReason) {}
 
     @GetMapping("/attendance-events")
     public List<AttendanceEventDto> events(
@@ -55,7 +56,8 @@ public class AttendanceEventsController {
                        u.employee_code,
                        ws.name as work_site,
                        ar.event_type,
-                       ar.status
+                       ar.status,
+                       ar.rejection_reason
                 from attendance_records ar
                 join users u on u.id = ar.user_id
                 left join work_sites ws on ws.id = ar.work_site_id
@@ -71,7 +73,8 @@ public class AttendanceEventsController {
                         rs.getString("employee_code"),
                         rs.getString("work_site"),
                         rs.getString("event_type"),
-                        rs.getString("status")),
+                        rs.getString("status"),
+                        rs.getString("rejection_reason")),
                 TenantContext.require(), fromTs, toTs);
     }
 }
