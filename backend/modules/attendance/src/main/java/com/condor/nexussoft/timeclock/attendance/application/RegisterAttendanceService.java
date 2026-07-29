@@ -12,6 +12,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -111,8 +112,8 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
         }
 
         // 3.4) Ventana de horario del turno asignado (RN-15, HU-10 CA1). Sin turno vigente no restringe.
-        if (reason == null && schedulePolicy.check(tenantId, userId, cmd.workSiteId(), now)
-                == SchedulePolicyPort.ScheduleCheck.OUT_OF_WINDOW) {
+        SchedulePolicyPort.ScheduleDecision schedule = schedulePolicy.check(tenantId, userId, cmd.workSiteId(), now);
+        if (reason == null && schedule.outcome() == SchedulePolicyPort.Outcome.OUT_OF_WINDOW) {
             reason = RejectionReason.OUT_OF_SCHEDULE;
         }
 
@@ -141,29 +142,41 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
             }
         }
 
+        // 5) Retardo (RN-16): ENTRADA aceptada tras la tolerancia del turno. No rechaza (RN-15);
+        //    marca el registro con el flag LATE + minutos para reporte/incidencia (RETARDO).
+        int lateMinutes = 0;
+        if (reason == null && eventType == AttendanceEventType.ENTRADA
+                && schedule.outcome() == SchedulePolicyPort.Outcome.WITHIN_WINDOW && schedule.minutesLate() > 0) {
+            lateMinutes = schedule.minutesLate();
+            flags.add("LATE");
+        }
+
         AttendanceStatus status = reason == null ? AttendanceStatus.ACCEPTED : AttendanceStatus.REJECTED;
 
         AttendanceRecord record = buildRecord(recordId, tenantId, userId, cmd, now, status, reason,
-                qrOk ? qr.nonce() : null, distance, flags);
+                qrOk ? qr.nonce() : null, distance, flags, lateMinutes);
         attendance.save(record);
 
         AttendanceResult result = new AttendanceResult(recordId, status.name(),
-                reason == null ? null : reason.name(), now, distance, flags);
+                reason == null ? null : reason.name(), now, distance, flags, lateMinutes);
         idempotency.save(tenantId, cmd.operationUuid(), result);
 
-        publishEvent(record, reason, now);
+        publishEvent(record, reason, lateMinutes, now);
         return result;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<AttendanceSummary> history(UUID tenantId, UUID userId, int limit) {
-        return attendance.findRecentByUser(tenantId, userId, Math.min(Math.max(limit, 1), 200));
+    public List<AttendanceSummary> history(UUID tenantId, UUID userId, Instant from, Instant to, int limit) {
+        // {@code to} llega como fin de día inclusivo; se convierte a cota exclusiva (+1 día).
+        Instant toExclusive = to == null ? null : to.plus(1, ChronoUnit.DAYS);
+        return attendance.findRecentByUser(tenantId, userId, from, toExclusive,
+                Math.min(Math.max(limit, 1), 200));
     }
 
     private AttendanceRecord buildRecord(UUID recordId, UUID tenantId, UUID userId, RegisterAttendanceCommand cmd,
                                          Instant now, AttendanceStatus status, RejectionReason reason,
-                                         String nonce, Double distance, List<String> flags) {
+                                         String nonce, Double distance, List<String> flags, int lateMinutes) {
         Instant deviceTime = cmd.deviceTimeEpochMs() == null ? null : Instant.ofEpochMilli(cmd.deviceTimeEpochMs());
         Integer skew = deviceTime == null ? null : (int) (now.getEpochSecond() - deviceTime.getEpochSecond());
         Evidence evidence = cmd.evidenceKey() == null ? null
@@ -174,13 +187,13 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
                 AttendanceEventType.valueOf(cmd.eventType()), status, reason, gps, distance,
                 cmd.deviceId(), deviceTime, skew, nonce, cmd.operationUuid(),
                 normalizeSource(cmd.source()), cmd.biometricVerified(), evidence,
-                buildValidationsJson(flags, reason, distance));
+                buildValidationsJson(flags, reason, distance, lateMinutes));
     }
 
-    private void publishEvent(AttendanceRecord record, RejectionReason reason, Instant now) {
+    private void publishEvent(AttendanceRecord record, RejectionReason reason, int lateMinutes, Instant now) {
         if (record.isAccepted()) {
             events.publish(AttendanceRegistered.of(record.tenantId(), record.id(), record.userId(),
-                    record.workSiteId(), record.eventType().name(), now));
+                    record.workSiteId(), record.eventType().name(), lateMinutes, now));
         } else {
             events.publish(AttendanceRejected.of(record.tenantId(), record.id(), record.userId(),
                     reason.name(), now));
@@ -191,11 +204,11 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
         return "OFFLINE_SYNC".equalsIgnoreCase(source) ? "OFFLINE_SYNC" : "ONLINE";
     }
 
-    private String buildValidationsJson(List<String> flags, RejectionReason reason, Double distance) {
+    private String buildValidationsJson(List<String> flags, RejectionReason reason, Double distance, int lateMinutes) {
         String flagsArray = flags.stream().map(f -> "\"" + f + "\"").collect(Collectors.joining(",", "[", "]"));
         String reasonJson = reason == null ? "null" : "\"" + reason.name() + "\"";
         String distanceJson = distance == null ? "null" : distance.toString();
         return "{\"flags\":" + flagsArray + ",\"rejectionReason\":" + reasonJson
-                + ",\"distanceToSiteM\":" + distanceJson + "}";
+                + ",\"distanceToSiteM\":" + distanceJson + ",\"lateMinutes\":" + lateMinutes + "}";
     }
 }

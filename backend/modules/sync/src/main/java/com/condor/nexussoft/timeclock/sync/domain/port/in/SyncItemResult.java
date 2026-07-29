@@ -16,5 +16,6 @@ public record SyncItemResult(
         Instant serverTime,
         Double distanceToSiteM,
         List<String> flags,
+        Integer minutesLate,
         String error) {
 }

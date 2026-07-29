@@ -21,10 +21,11 @@ public final class SyncDtos {
     }
 
     public record SyncItemResponse(UUID operationUuid, String status, String rejectionReason,
-                                   Instant serverTime, Double distanceToSiteM, List<String> flags, String error) {
+                                   Instant serverTime, Double distanceToSiteM, List<String> flags,
+                                   Integer minutesLate, String error) {
         public static SyncItemResponse from(SyncItemResult r) {
             return new SyncItemResponse(r.operationUuid(), r.status(), r.rejectionReason(),
-                    r.serverTime(), r.distanceToSiteM(), r.flags(), r.error());
+                    r.serverTime(), r.distanceToSiteM(), r.flags(), r.minutesLate(), r.error());
         }
     }
 

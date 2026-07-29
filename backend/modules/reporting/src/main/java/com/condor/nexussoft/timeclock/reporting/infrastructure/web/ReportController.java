@@ -1,6 +1,7 @@
 package com.condor.nexussoft.timeclock.reporting.infrastructure.web;
 
 import com.condor.nexussoft.timeclock.platform.tenant.TenantContext;
+import com.condor.nexussoft.timeclock.reporting.application.AttendanceRecordRow;
 import com.condor.nexussoft.timeclock.reporting.application.AttendanceReportService;
 import com.condor.nexussoft.timeclock.reporting.application.AttendanceSummaryRow;
 import com.condor.nexussoft.timeclock.reporting.application.AttendanceSummaryService;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -74,6 +76,25 @@ public class ReportController {
         LocalDate toDate = to != null && !to.isBlank() ? LocalDate.parse(to) : LocalDate.now();
         LocalDate fromDate = from != null && !from.isBlank() ? LocalDate.parse(from) : toDate.minusDays(29);
         return summary.summary(TenantContext.require(), fromDate, toDate);
+    }
+
+    /**
+     * Registros individuales de asistencia por empleado (JSON). Una fila por marcación con nombre +
+     * número de empleado, centro de trabajo, tipo de evento y estado (sin ids). El front filtra/ordena
+     * en el cliente; {@code from}/{@code to} son fechas {@code yyyy-MM-dd} (por defecto, últimos 30 días);
+     * {@code status} filtra por estado (ACCEPTED/REJECTED/PENDING_REVIEW).
+     */
+    @GetMapping("/attendance-records")
+    public List<AttendanceRecordRow> attendanceRecords(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String status) {
+
+        LocalDate toDate = to != null && !to.isBlank() ? LocalDate.parse(to) : LocalDate.now();
+        LocalDate fromDate = from != null && !from.isBlank() ? LocalDate.parse(from) : toDate.minusDays(29);
+        Instant fromTs = fromDate.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant toTs = toDate.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        return report.records(TenantContext.require(), fromTs, toTs, status);
     }
 
     private ResponseEntity<byte[]> download(byte[] body, String filename, MediaType type) {

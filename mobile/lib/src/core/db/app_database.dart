@@ -48,6 +48,11 @@ class AppDatabase extends _$AppDatabase {
     return rows.length;
   }
 
+  Future<PendingAttendanceOp?> findByUuid(String operationUuid) {
+    return (select(pendingAttendanceOps)..where((t) => t.operationUuid.equals(operationUuid)))
+        .getSingleOrNull();
+  }
+
   Future<void> markStatus(String operationUuid, String status, String? error) {
     return (update(pendingAttendanceOps)..where((t) => t.operationUuid.equals(operationUuid)))
         .write(PendingAttendanceOpsCompanion(

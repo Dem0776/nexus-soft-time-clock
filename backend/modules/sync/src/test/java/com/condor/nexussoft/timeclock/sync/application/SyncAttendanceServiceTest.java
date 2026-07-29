@@ -37,7 +37,7 @@ class SyncAttendanceServiceTest {
         RegisterAttendanceCommand bad = cmd();
 
         when(attendance.register(tenantId, userId, ok)).thenReturn(new AttendanceResult(
-                UUID.randomUUID(), "ACCEPTED", null, Instant.parse("2026-07-21T10:00:00Z"), 8.0, List.of()));
+                UUID.randomUUID(), "ACCEPTED", null, Instant.parse("2026-07-21T10:00:00Z"), 8.0, List.of(), 0));
         when(attendance.register(tenantId, userId, bad))
                 .thenThrow(new DomainException("OUT_OF_GEOFENCE", "fuera"));
 

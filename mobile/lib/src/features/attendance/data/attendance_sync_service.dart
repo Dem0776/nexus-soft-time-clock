@@ -39,7 +39,9 @@ class AttendanceSyncService {
           // para no perder el registro fuera de la cola de sincronización (RN-52).
           await _db.incrementAttempts(uuid, error);
         } else if (status == 'ACCEPTED') {
-          await _db.markStatus(uuid, 'SYNCED', null);
+          // Aceptado; si el servidor detectó retardo (RN-16) se anota en la nota para informarlo.
+          final late = r['minutesLate'] as int?;
+          await _db.markStatus(uuid, 'SYNCED', (late != null && late > 0) ? 'LATE:$late' : null);
         } else {
           await _db.markStatus(uuid, 'REJECTED', r['rejectionReason'] as String?);
         }

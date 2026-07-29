@@ -45,4 +45,42 @@ public class AttendanceReportService {
                 rs.getDouble("lat"),
                 rs.getDouble("lng")), args.toArray());
     }
+
+    /**
+     * Registros individuales por empleado (una fila por marcación) con nombre + número de empleado
+     * y nombre del centro de trabajo, sin exponer ids/llaves. Une {@code attendance_records} con
+     * {@code users} y {@code work_sites}; filtra por rango y estado opcional, más reciente primero.
+     */
+    public List<AttendanceRecordRow> records(UUID tenantId, Instant from, Instant to, String status) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT ar.server_time, u.employee_code, u.first_name, u.last_name, "
+                        + "ar.event_type, ar.status, ar.rejection_reason, ws.name AS work_center "
+                        + "FROM attendance_records ar "
+                        + "JOIN users u ON u.id = ar.user_id "
+                        + "LEFT JOIN work_sites ws ON ws.id = ar.work_site_id "
+                        + "WHERE ar.tenant_id = ? AND ar.server_time BETWEEN ? AND ?");
+        List<Object> args = new ArrayList<>();
+        args.add(tenantId);
+        args.add(Timestamp.from(from));
+        args.add(Timestamp.from(to));
+        if (status != null && !status.isBlank()) {
+            sql.append(" AND ar.status = ?");
+            args.add(status);
+        }
+        sql.append(" ORDER BY ar.server_time DESC LIMIT ").append(MAX_ROWS);
+
+        return jdbc.query(sql.toString(), (rs, i) -> {
+            String code = rs.getString("employee_code");
+            String name = (rs.getString("first_name") + " " + rs.getString("last_name")).trim();
+            String workCenter = rs.getString("work_center");
+            return new AttendanceRecordRow(
+                    code != null ? code : "—",
+                    name,
+                    rs.getTimestamp("server_time").toInstant(),
+                    rs.getString("event_type"),
+                    rs.getString("status"),
+                    rs.getString("rejection_reason"),
+                    workCenter != null ? workCenter : "—");
+        }, args.toArray());
+    }
 }

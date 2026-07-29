@@ -8,11 +8,13 @@ import com.condor.nexussoft.timeclock.scheduling.domain.port.in.SchedulingUseCas
 import com.condor.nexussoft.timeclock.shared.domain.ResourceNotFoundException;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -31,7 +33,7 @@ public class SchedulePolicyAdapter implements SchedulePolicyPort {
     }
 
     @Override
-    public ScheduleCheck check(UUID tenantId, UUID userId, UUID workSiteId, Instant at) {
+    public ScheduleDecision check(UUID tenantId, UUID userId, UUID workSiteId, Instant at) {
         List<ShiftAssignment> forSite = scheduling.listAssignments(tenantId, userId).stream()
                 .filter(a -> workSiteId.equals(a.workSiteId()))
                 .toList();
@@ -48,13 +50,18 @@ public class SchedulePolicyAdapter implements SchedulePolicyPort {
                 continue;   // asignación no vigente hoy en la zona del turno
             }
             anyEffectiveToday = true;
-            if (ScheduleWindowValidator.withinWindow(shift.startTime(), shift.endTime(),
-                    shift.crossesMidnight(), shift.windowBeforeMin(), shift.windowAfterMin(), nowLocal)) {
-                return ScheduleCheck.WITHIN_WINDOW;
+            Optional<LocalDateTime> matchedStart = ScheduleWindowValidator.matchedStart(shift.startTime(),
+                    shift.endTime(), shift.crossesMidnight(), shift.windowBeforeMin(), shift.windowAfterMin(),
+                    nowLocal);
+            if (matchedStart.isPresent()) {
+                // RN-16: tardanza sobre inicio + tolerancia de la ocurrencia que casó la ventana.
+                LocalDateTime lateThreshold = matchedStart.get().plusMinutes(shift.lateToleranceMin());
+                long minutesLate = Duration.between(lateThreshold, nowLocal).toMinutes();
+                return ScheduleDecision.withinWindow((int) Math.max(0, minutesLate));
             }
         }
         // Sin turno vigente hoy no se restringe; con turno vigente pero fuera de ventana → rechazo.
-        return anyEffectiveToday ? ScheduleCheck.OUT_OF_WINDOW : ScheduleCheck.NO_SCHEDULE;
+        return anyEffectiveToday ? ScheduleDecision.outOfWindow() : ScheduleDecision.noSchedule();
     }
 
     private boolean isEffectiveOn(ShiftAssignment a, LocalDate date) {

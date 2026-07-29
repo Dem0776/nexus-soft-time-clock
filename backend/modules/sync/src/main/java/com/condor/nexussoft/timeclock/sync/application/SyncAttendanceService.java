@@ -37,7 +37,7 @@ public class SyncAttendanceService implements SyncAttendanceUseCase {
             try {
                 AttendanceResult r = attendance.register(tenantId, userId, cmd);  // transacción propia por item
                 results.add(new SyncItemResult(cmd.operationUuid(), r.status(), r.rejectionReason(),
-                        r.serverTime(), r.distanceToSiteM(), r.flags(), null));
+                        r.serverTime(), r.distanceToSiteM(), r.flags(), r.minutesLate(), null));
             } catch (DomainException e) {
                 results.add(errorItem(cmd.operationUuid(), e.getCode()));
             } catch (RuntimeException e) {
@@ -49,6 +49,6 @@ public class SyncAttendanceService implements SyncAttendanceUseCase {
     }
 
     private SyncItemResult errorItem(UUID operationUuid, String error) {
-        return new SyncItemResult(operationUuid, "ERROR", null, null, null, List.of(), error);
+        return new SyncItemResult(operationUuid, "ERROR", null, null, null, List.of(), null, error);
     }
 }

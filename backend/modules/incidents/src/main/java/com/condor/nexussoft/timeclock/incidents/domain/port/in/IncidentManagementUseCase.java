@@ -14,4 +14,7 @@ public interface IncidentManagementUseCase {
 
     /** Alta automática de incidencia por registro rechazado (consumida de un evento). */
     Incident openForRejectedAttendance(UUID tenantId, UUID userId, UUID attendanceId, String reason);
+
+    /** Alta automática de incidencia por ENTRADA con retardo (consumida de un evento, RN-16). */
+    Incident openForLateArrival(UUID tenantId, UUID userId, UUID attendanceId, int minutesLate);
 }

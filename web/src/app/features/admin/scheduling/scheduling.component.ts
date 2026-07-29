@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
-import { forkJoin } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -336,7 +337,9 @@ export class SchedulingComponent {
       this.shiftsById.set({});
       return;
     }
-    forkJoin(schedules.map((s) => this.service.listShifts(s.id))).subscribe({
+    forkJoin(
+      schedules.map((s) => this.service.listShifts(s.id).pipe(catchError(() => of([] as Shift[])))),
+    ).subscribe({
       next: (lists) => {
         const index: Record<string, Shift> = {};
         for (const list of lists) {

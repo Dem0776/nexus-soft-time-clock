@@ -3,6 +3,7 @@ package com.condor.nexussoft.timeclock.attendance.domain;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Optional;
 
 /**
  * Determina si un instante (ya convertido a la zona del turno) cae dentro de la <b>ventana de
@@ -17,12 +18,25 @@ public final class ScheduleWindowValidator {
 
     public static boolean withinWindow(LocalTime start, LocalTime end, boolean crossesMidnight,
                                        int windowBeforeMin, int windowAfterMin, LocalDateTime now) {
+        return matchedStart(start, end, crossesMidnight, windowBeforeMin, windowAfterMin, now).isPresent();
+    }
+
+    /**
+     * Devuelve el {@code inicio} (fecha+hora) de la ocurrencia del turno cuya ventana contiene a
+     * {@code now}, o vacío si {@code now} no cae en ninguna ventana. Sirve para medir la tardanza
+     * respecto al inicio real de la jornada (RN-16), respetando turnos que cruzan medianoche.
+     */
+    public static Optional<LocalDateTime> matchedStart(LocalTime start, LocalTime end, boolean crossesMidnight,
+                                                       int windowBeforeMin, int windowAfterMin, LocalDateTime now) {
         LocalDate today = now.toLocalDate();
         if (inWindowForStartDate(today, start, end, crossesMidnight, windowBeforeMin, windowAfterMin, now)) {
-            return true;
+            return Optional.of(today.atTime(start));
         }
-        return crossesMidnight && inWindowForStartDate(today.minusDays(1), start, end, true,
-                windowBeforeMin, windowAfterMin, now);
+        if (crossesMidnight && inWindowForStartDate(today.minusDays(1), start, end, true,
+                windowBeforeMin, windowAfterMin, now)) {
+            return Optional.of(today.minusDays(1).atTime(start));
+        }
+        return Optional.empty();
     }
 
     private static boolean inWindowForStartDate(LocalDate startDate, LocalTime start, LocalTime end,

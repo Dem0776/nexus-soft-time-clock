@@ -69,7 +69,72 @@ class AttendanceController extends Notifier<AttendanceUiState> {
     await ref.read(attendanceSyncServiceProvider).syncPending();
     await _refreshCount();
 
-    state = state.copyWith(busy: false, message: 'Registro guardado y sincronizado.');
+    // El mensaje refleja el veredicto autoritativo del servidor aplicado por el sync a la
+    // fila local (HU-10 CA3, HU-15 CA4): aceptado, rechazado con motivo, o aún pendiente si
+    // no hubo red. Se fija DESPUÉS de _refreshCount porque copyWith resetea message en cada llamada.
+    final row = await db.findByUuid(op.operationUuid);
+    state = state.copyWith(busy: false, message: _messageFor(row, position.accuracy));
+  }
+
+  /// Traduce el estado final de la operación (tras sincronizar) a un mensaje para el colaborador.
+  /// [accuracyM] es la precisión del fix enviado; se muestra en el rechazo por GPS para dar
+  /// contexto accionable (saber cuán lejos quedó del umbral) y como dato de diagnóstico.
+  String _messageFor(PendingAttendanceOp? row, double accuracyM) {
+    switch (row?.status) {
+      case 'SYNCED':
+        // Para SYNCED, lastError se reutiliza como nota del servidor: 'LATE:<min>' si hubo retardo.
+        final note = row?.lastError;
+        if (note != null && note.startsWith('LATE:')) {
+          return 'Registro aceptado (retardo de ${note.substring(5)} min).';
+        }
+        return 'Registro aceptado.';
+      case 'REJECTED':
+        final reason = row?.lastError;
+        if (reason == 'LOW_GPS_ACCURACY') {
+          return 'Registro rechazado: precisión de GPS baja (±${accuracyM.round()} m). '
+              'Muévete a un lugar abierto (sal al exterior) y vuelve a intentarlo.';
+        }
+        return 'Registro rechazado: ${_rejectionLabel(reason)}.';
+      default:
+        // PENDING/ERROR o fila ausente: no se perdió, se reintentará al recuperar conexión.
+        return 'Registro guardado. Se sincronizará cuando haya conexión.';
+    }
+  }
+
+  /// Motivo de rechazo (código del backend, RejectionReason) a texto en español.
+  String _rejectionLabel(String? reason) {
+    switch (reason) {
+      case 'INVALID_QR':
+        return 'QR inválido o expirado';
+      case 'OUT_OF_GEOFENCE':
+        return 'fuera del área permitida';
+      case 'LOW_GPS_ACCURACY':
+        return 'precisión de GPS baja';
+      case 'GPS_UNAVAILABLE':
+        return 'GPS no disponible';
+      case 'OUT_OF_SCHEDULE':
+        return 'fuera del horario del turno';
+      case 'FRAUD_MOCK_LOCATION':
+        return 'ubicación simulada detectada';
+      case 'FRAUD_ROOTED_DEVICE':
+        return 'dispositivo comprometido (root/jailbreak)';
+      case 'FRAUD_GPS_SPOOF_APP':
+        return 'app de falsificación de GPS detectada';
+      case 'REPLAY_DETECTED':
+        return 'QR ya utilizado';
+      case 'INVALID_SEQUENCE':
+        return 'secuencia de marcaciones inválida';
+      case 'UNTRUSTED_DEVICE':
+        return 'dispositivo no confiable';
+      case 'PHOTO_REQUIRED':
+        return 'se requiere evidencia fotográfica';
+      case 'BIOMETRIC_REQUIRED':
+        return 'se requiere verificación biométrica';
+      case 'EVENT_TYPE_DISABLED':
+        return 'tipo de evento no habilitado';
+      default:
+        return reason ?? 'motivo desconocido';
+    }
   }
 
   Future<void> syncNow() async {

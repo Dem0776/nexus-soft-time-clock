@@ -49,6 +49,14 @@ export const routes: Routes = [
           import('./features/attendance-events/attendance-events.component').then((m) => m.AttendanceEventsComponent),
       },
       {
+        path: 'reports/attendance-records',
+        canActivate: [requirePermission('report:export')],
+        loadComponent: () =>
+          import('./features/reports/attendance-records/attendance-records.component').then(
+            (m) => m.AttendanceRecordsComponent,
+          ),
+      },
+      {
         path: 'audit',
         canActivate: [requirePermission('audit:read')],
         loadComponent: () => import('./features/audit/audit.component').then((m) => m.AuditComponent),

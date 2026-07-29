@@ -5,14 +5,19 @@ import com.condor.nexussoft.timeclock.shared.domain.DomainEvent;
 import java.time.Instant;
 import java.util.UUID;
 
-/** Evento: se aceptó un registro de asistencia. Consumido por Audit, Notifications, Reporting, Realtime. */
+/**
+ * Evento: se aceptó un registro de asistencia. Consumido por Audit, Notifications, Reporting, Realtime, Incidents.
+ * {@code minutesLate} es la tardanza sobre la tolerancia del turno (RN-16); 0 si es puntual o no aplica.
+ */
 public record AttendanceRegistered(UUID eventId, Instant occurredAt, UUID tenantId,
-                                   UUID attendanceId, UUID userId, UUID workSiteId, String eventKind)
+                                   UUID attendanceId, UUID userId, UUID workSiteId, String eventKind,
+                                   int minutesLate)
         implements DomainEvent {
 
     public static AttendanceRegistered of(UUID tenantId, UUID attendanceId, UUID userId,
-                                          UUID workSiteId, String eventKind, Instant when) {
-        return new AttendanceRegistered(UUID.randomUUID(), when, tenantId, attendanceId, userId, workSiteId, eventKind);
+                                          UUID workSiteId, String eventKind, int minutesLate, Instant when) {
+        return new AttendanceRegistered(UUID.randomUUID(), when, tenantId, attendanceId, userId, workSiteId,
+                eventKind, minutesLate);
     }
 
     @Override

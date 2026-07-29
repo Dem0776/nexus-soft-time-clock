@@ -56,4 +56,16 @@ class IncidentServiceTest {
         assertThat(result.status()).isEqualTo(Incident.Status.OPEN);
         assertThat(result.description()).contains("OUT_OF_GEOFENCE");
     }
+
+    @Test
+    void openForLateArrival_creaIncidenciaAbiertaDeTipoRetardo() {
+        IncidentService service = new IncidentService(incidents, clock);
+        when(incidents.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        Incident result = service.openForLateArrival(tenantId, UUID.randomUUID(), UUID.randomUUID(), 12);
+
+        assertThat(result.type()).isEqualTo(Incident.Type.RETARDO);
+        assertThat(result.status()).isEqualTo(Incident.Status.OPEN);
+        assertThat(result.description()).contains("12");
+    }
 }

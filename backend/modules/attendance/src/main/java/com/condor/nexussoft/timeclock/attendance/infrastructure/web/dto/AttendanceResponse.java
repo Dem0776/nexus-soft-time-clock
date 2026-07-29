@@ -7,10 +7,10 @@ import java.util.List;
 import java.util.UUID;
 
 public record AttendanceResponse(UUID recordId, String status, String rejectionReason,
-                                 Instant serverTime, Double distanceToSiteM, List<String> flags) {
+                                 Instant serverTime, Double distanceToSiteM, List<String> flags, int minutesLate) {
 
     public static AttendanceResponse from(AttendanceResult r) {
         return new AttendanceResponse(r.recordId(), r.status(), r.rejectionReason(),
-                r.serverTime(), r.distanceToSiteM(), r.flags());
+                r.serverTime(), r.distanceToSiteM(), r.flags(), r.minutesLate());
     }
 }

@@ -62,7 +62,13 @@ class RegisterAttendanceServiceTest {
     /** El colaborador no tiene turno asignado vigente → sin restricción horaria. */
     private void noScheduleStub() {
         when(schedulePolicy.check(eq(tenantId), eq(userId), eq(siteId), any()))
-                .thenReturn(SchedulePolicyPort.ScheduleCheck.NO_SCHEDULE);
+                .thenReturn(SchedulePolicyPort.ScheduleDecision.noSchedule());
+    }
+
+    /** Hay turno vigente y la marca cae dentro de ventana, con {@code minutesLate} de retardo. */
+    private void withinWindowStub(int minutesLate) {
+        when(schedulePolicy.check(eq(tenantId), eq(userId), eq(siteId), any()))
+                .thenReturn(SchedulePolicyPort.ScheduleDecision.withinWindow(minutesLate));
     }
 
     private RegisterAttendanceCommand cmd() {
@@ -136,7 +142,7 @@ class RegisterAttendanceServiceTest {
     @Test
     void reenvio_delMismoUuid_devuelveResultadoPrevio_sinReprocesar() {
         AttendanceResult previous = new AttendanceResult(UUID.randomUUID(), "ACCEPTED", null,
-                Instant.parse("2026-07-21T09:00:00Z"), 5.0, List.of());
+                Instant.parse("2026-07-21T09:00:00Z"), 5.0, List.of(), 0);
         RegisterAttendanceCommand command = cmd();
         when(idempotency.find(tenantId, command.operationUuid())).thenReturn(Optional.of(previous));
 
@@ -298,12 +304,54 @@ class RegisterAttendanceServiceTest {
     void fueraDeVentanaDeTurno_esRechazada() {
         baseStubsWithPolicy(WorkSitePolicyPort.SitePolicy.permissive());
         when(schedulePolicy.check(eq(tenantId), eq(userId), eq(siteId), any()))
-                .thenReturn(SchedulePolicyPort.ScheduleCheck.OUT_OF_WINDOW);
+                .thenReturn(SchedulePolicyPort.ScheduleDecision.outOfWindow());
 
         AttendanceResult result = service.register(tenantId, userId, cmd("ENTRADA"));
 
         assertThat(result.status()).isEqualTo("REJECTED");
         assertThat(result.rejectionReason()).isEqualTo("OUT_OF_SCHEDULE");
         verify(nonceGuard, never()).tryConsume(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void entrada_dentroDeVentana_trasTolerancia_esAceptadaYMarcadaComoRetardo() {
+        baseStubsWithPolicy(WorkSitePolicyPort.SitePolicy.permissive());
+        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), any())).thenReturn(true);
+        withinWindowStub(12);   // 12 min tras la tolerancia
+
+        AttendanceResult result = service.register(tenantId, userId, cmd("ENTRADA"));
+
+        assertThat(result.status()).isEqualTo("ACCEPTED");
+        assertThat(result.rejectionReason()).isNull();
+        assertThat(result.minutesLate()).isEqualTo(12);
+        assertThat(result.flags()).contains("LATE");
+    }
+
+    @Test
+    void entrada_dentroDeTolerancia_esAceptadaSinRetardo() {
+        baseStubsWithPolicy(WorkSitePolicyPort.SitePolicy.permissive());
+        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), any())).thenReturn(true);
+        withinWindowStub(0);    // puntual (dentro de tolerancia)
+
+        AttendanceResult result = service.register(tenantId, userId, cmd("ENTRADA"));
+
+        assertThat(result.status()).isEqualTo("ACCEPTED");
+        assertThat(result.minutesLate()).isZero();
+        assertThat(result.flags()).doesNotContain("LATE");
+    }
+
+    @Test
+    void salida_trasTolerancia_noGeneraRetardo() {
+        baseStubsWithPolicy(WorkSitePolicyPort.SitePolicy.permissive());
+        when(attendance.findLastAcceptedEvent(tenantId, userId))
+                .thenReturn(Optional.of(new LastEvent(AttendanceEventType.ENTRADA, siteId)));
+        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), any())).thenReturn(true);
+        withinWindowStub(30);   // el retardo solo aplica a ENTRADA (RN-16)
+
+        AttendanceResult result = service.register(tenantId, userId, cmd("SALIDA"));
+
+        assertThat(result.status()).isEqualTo("ACCEPTED");
+        assertThat(result.minutesLate()).isZero();
+        assertThat(result.flags()).doesNotContain("LATE");
     }
 }

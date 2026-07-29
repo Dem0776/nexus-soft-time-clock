@@ -10,6 +10,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -35,12 +38,29 @@ public class AttendanceController {
                 attendance.register(TenantContext.require(), currentUserId(), request.toCommand()));
     }
 
+    /**
+     * Historial propio del colaborador (RF-05, HU-16). Filtro opcional por rango de fechas
+     * ({@code from}/{@code to} en formato {@code yyyy-MM-dd}; {@code to} inclusivo por día).
+     */
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
-    public List<AttendanceSummaryResponse> myHistory(@RequestParam(defaultValue = "50") int limit) {
-        return attendance.history(TenantContext.require(), currentUserId(), limit).stream()
+    public List<AttendanceSummaryResponse> myHistory(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(defaultValue = "50") int limit) {
+
+        Instant fromInstant = parseDayStart(from);
+        Instant toInstant = parseDayStart(to);
+        return attendance.history(TenantContext.require(), currentUserId(), fromInstant, toInstant, limit).stream()
                 .map(AttendanceSummaryResponse::from)
                 .toList();
+    }
+
+    /** Convierte una fecha {@code yyyy-MM-dd} al instante de inicio de día en UTC; nulo/vacío = sin cota. */
+    private static Instant parseDayStart(String date) {
+        return date == null || date.isBlank()
+                ? null
+                : LocalDate.parse(date).atStartOfDay().toInstant(ZoneOffset.UTC);
     }
 
     /** El subject del JWT (nombre de la autenticación) es el id de usuario. */

@@ -49,6 +49,13 @@ public class Incident {
                 null, null, null, Instant.now());
     }
 
+    /** Alta automática de incidencia por ENTRADA con retardo (RN-16). El registro sigue aceptado. */
+    public static Incident openForLateArrival(UUID tenantId, UUID userId, UUID attendanceId, int minutesLate) {
+        return new Incident(UUID.randomUUID(), tenantId, userId, Type.RETARDO, Status.OPEN,
+                "LOW", LocalDate.now(), attendanceId, "Retardo de " + minutesLate + " min",
+                null, null, null, Instant.now());
+    }
+
     /** Resuelve la incidencia (aprobar/rechazar/resolver). Debe quedar auditado (RN-43). */
     public void resolve(Status newStatus, String note, UUID resolverId, Instant now) {
         if (this.status != Status.OPEN) {
