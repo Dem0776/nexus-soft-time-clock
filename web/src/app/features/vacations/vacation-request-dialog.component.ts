@@ -70,12 +70,12 @@ import { VacationService } from './vacation.service';
       .m-head { display: flex; align-items: center; gap: 14px; padding: 20px 28px 16px; border-bottom: 1px solid var(--border); }
       .m-head .badge-ic { width: 44px; height: 44px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; border: 1px solid var(--brand-border); flex: none; }
       .m-head .t { flex: 1; }
-      .m-head h2 { margin: 0; font-size: 1.1rem; font-weight: 700; }
+      .m-head h2 { margin: 0; font-size: 1.15rem; font-weight: 700; }
       .m-head p { margin: 2px 0 0; color: var(--text-muted); font-size: var(--font-small); }
-      .m-body { padding: 16px 28px 8px; }
-      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+      .m-body { padding: 8px 28px 12px; }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--sp-4); }
       mat-form-field { width: 100%; }
-      .m-foot { display: flex; align-items: center; gap: 10px; padding: 12px 28px 18px; border-top: 1px solid var(--border); }
+      .m-foot { display: flex; align-items: center; gap: 10px; padding: 14px 28px 18px; border-top: 1px solid var(--border); }
       .m-foot .fill { flex: 1; }
     `,
   ],

@@ -224,8 +224,7 @@ type Dim = 'roles' | 'status' | 'gender' | 'tenure';
       .kpi { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); padding: 16px; }
       .k-ic { width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center; flex: none; }
       .k-ic.brand { background: var(--brand-soft); color: var(--brand); }
-      .k-ic.pink { background: #fce7f3; color: #be185d; }
-      body.dark .k-ic.pink { background: rgba(190,24,93,.18); color: #f9a8d4; }
+      .k-ic.pink { background: var(--pink-bg); color: var(--pink); }
       .k-ic.danger { background: var(--danger-bg); color: var(--danger); }
       .k-ic.success { background: var(--success-bg); color: var(--success); }
       .k-n { font-size: 1.4rem; font-weight: 700; line-height: 1; }
@@ -257,8 +256,7 @@ type Dim = 'roles' | 'status' | 'gender' | 'tenure';
       .role-tag { background: var(--brand-soft); border: 1px solid var(--brand-border); color: var(--brand); border-radius: 999px; padding: 2px 10px; font-size: var(--font-small); font-weight: 600; white-space: nowrap; }
       .pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; font-size: var(--font-small); font-weight: 700; }
       .pill mat-icon { font-size: 16px; width: 16px; height: 16px; }
-      .pill.pink { background: #fce7f3; color: #be185d; }
-      body.dark .pill.pink { background: rgba(190,24,93,.18); color: #f9a8d4; }
+      .pill.pink { background: var(--pink-bg); color: var(--pink); }
       .pill.danger { background: var(--danger-bg); color: var(--danger); }
       .pill.success { background: var(--success-bg); color: var(--success); }
       .fcell { padding-top: 6px !important; padding-bottom: 6px !important; background: var(--surface-2); }
