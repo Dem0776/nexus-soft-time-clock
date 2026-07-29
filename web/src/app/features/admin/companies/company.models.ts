@@ -27,3 +27,22 @@ export interface UpdateCompany {
   timezone?: string;
   locale?: string;
 }
+
+/** Alta del administrador inicial (COMPANY_ADMIN) de una empresa, hecha por el SUPER_ADMIN. */
+export interface ProvisionAdmin {
+  email: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+  employeeCode?: string;
+}
+
+/** Usuario devuelto por el backend al aprovisionar (subset relevante). */
+export interface ProvisionedAdmin {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  status: string;
+  roles: string[];
+}

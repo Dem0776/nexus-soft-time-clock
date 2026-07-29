@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -35,6 +35,23 @@ const QUICK_LINKS: readonly QuickLink[] = [
   standalone: true,
   imports: [RouterLink, MatIconModule, MatButtonModule, PageHeaderComponent, EmptyStateComponent],
   template: `
+    @if (isPlatformAdmin()) {
+      <app-page-header title="Panel de plataforma" subtitle="Administración global de empresas" />
+      <div class="card-row">
+        <div class="metric-card">
+          <div class="metric-head">
+            <span class="metric-icon info"><mat-icon>business</mat-icon></span>
+            <h3>Empresas</h3>
+          </div>
+          <p class="metric-sub">
+            Gestioná las empresas (tenants) de la plataforma y aprovisioná el administrador inicial de cada una.
+          </p>
+          <a mat-flat-button color="primary" routerLink="/companies" class="full-width">
+            <mat-icon>arrow_forward</mat-icon> Ir a Empresas
+          </a>
+        </div>
+      </div>
+    } @else {
     <app-page-header title="Panel" subtitle="Resumen operativo de tu empresa" />
 
     @if (summary(); as s) {
@@ -103,6 +120,7 @@ const QUICK_LINKS: readonly QuickLink[] = [
       <app-empty-state icon="error_outline" [message]="error()!" />
     } @else {
       <p class="muted">Cargando indicadores…</p>
+    }
     }
   `,
   styles: [
@@ -182,14 +200,31 @@ export class MetricsDashboardComponent {
   protected readonly summary = signal<DashboardSummary | null>(null);
   protected readonly error = signal<string | null>(null);
 
+  /** El admin de plataforma (SUPER_ADMIN, sin tenant) no tiene métricas de empresa: ve un panel global. */
+  protected readonly isPlatformAdmin = computed(() => this.store.user()?.platformAdmin ?? false);
+
   protected readonly visibleLinks = computed(() =>
     QUICK_LINKS.filter((l) => !l.permission || this.store.hasPermission(l.permission)),
   );
 
+  private fetched = false;
+
   constructor() {
-    this.service.summary().subscribe({
-      next: (s) => this.summary.set(s),
-      error: () => this.error.set('No se pudieron cargar los indicadores (¿permiso dashboard:read?).'),
+    // Espera a que /me esté cargado (deep-link/reload) antes de decidir; el admin de
+    // plataforma no consulta métricas tenant-scoped (evita el 500 por falta de tenant).
+    effect(() => {
+      const user = this.store.user();
+      if (!user || this.fetched) {
+        return;
+      }
+      this.fetched = true;
+      if (user.platformAdmin) {
+        return;
+      }
+      this.service.summary().subscribe({
+        next: (s) => this.summary.set(s),
+        error: () => this.error.set('No se pudieron cargar los indicadores (¿permiso dashboard:read?).'),
+      });
     });
   }
 

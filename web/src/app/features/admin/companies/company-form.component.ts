@@ -84,6 +84,40 @@ import { CompanyService } from './company.service';
           </div>
         </form>
 
+        @if (!isEdit()) {
+          <h3 class="form-section-title" style="margin-top: var(--sp-6)">Administrador inicial</h3>
+          <p class="muted" style="margin: 0 0 var(--sp-4)">
+            Se creará el primer usuario COMPANY_ADMIN de la empresa. Podrá iniciar sesión con estos datos y administrar su tenant.
+          </p>
+          <form [formGroup]="adminForm">
+            <div class="form-grid-2">
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Email</mat-label>
+                <input matInput type="email" formControlName="email" placeholder="admin@empresa.com" />
+                <mat-hint>Correo de acceso del administrador.</mat-hint>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Contraseña temporal</mat-label>
+                <input matInput type="password" formControlName="password" />
+                <mat-hint>Mínimo 8 caracteres. Podrá cambiarla luego.</mat-hint>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Nombre</mat-label>
+                <input matInput formControlName="firstName" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Apellido</mat-label>
+                <input matInput formControlName="lastName" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="drawer-field">
+                <mat-label>Código de empleado</mat-label>
+                <input matInput formControlName="employeeCode" />
+                <mat-hint>Opcional.</mat-hint>
+              </mat-form-field>
+            </div>
+          </form>
+        }
+
         <div class="form-callout">
           <mat-icon>info</mat-icon>
           <div>
@@ -94,7 +128,7 @@ import { CompanyService } from './company.service';
 
         <div class="form-actions">
           <button mat-button type="button" (click)="cancel()">Cancelar</button>
-          <button mat-flat-button color="primary" [disabled]="!formValid() || saving()" (click)="save()">
+          <button mat-flat-button color="primary" [disabled]="!canSave() || saving()" (click)="save()">
             <mat-icon>save</mat-icon> {{ isEdit() ? 'Guardar cambios' : 'Guardar empresa' }}
           </button>
         </div>
@@ -147,6 +181,44 @@ import { CompanyService } from './company.service';
               {{ c.status === 'ACTIVE' ? 'Suspender empresa' : 'Activar empresa' }}
             </button>
           </div>
+
+          <div class="info-card">
+            <h3 class="info-card-title">Administrador</h3>
+            @if (!showAdminForm()) {
+              <p class="muted" style="margin:0 0 var(--sp-3)">
+                Aprovisioná un usuario COMPANY_ADMIN para esta empresa (el primer acceso del tenant).
+              </p>
+              <button mat-stroked-button (click)="showAdminForm.set(true)">
+                <mat-icon>person_add</mat-icon> Agregar administrador
+              </button>
+            } @else {
+              <form [formGroup]="adminForm">
+                <mat-form-field appearance="outline" class="drawer-field" style="width:100%">
+                  <mat-label>Email</mat-label>
+                  <input matInput type="email" formControlName="email" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="drawer-field" style="width:100%">
+                  <mat-label>Nombre</mat-label>
+                  <input matInput formControlName="firstName" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="drawer-field" style="width:100%">
+                  <mat-label>Apellido</mat-label>
+                  <input matInput formControlName="lastName" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="drawer-field" style="width:100%">
+                  <mat-label>Contraseña temporal</mat-label>
+                  <input matInput type="password" formControlName="password" />
+                  <mat-hint>Mínimo 8 caracteres.</mat-hint>
+                </mat-form-field>
+              </form>
+              <div style="display:flex; gap: var(--sp-2); margin-top: var(--sp-2)">
+                <button mat-flat-button color="primary" [disabled]="!adminValid() || provisioningAdmin()" (click)="provisionAdmin()">
+                  <mat-icon>save</mat-icon> Guardar administrador
+                </button>
+                <button mat-button (click)="showAdminForm.set(false)">Cancelar</button>
+              </div>
+            }
+          </div>
         }
       </div>
     </div>
@@ -177,8 +249,26 @@ export class CompanyFormComponent {
     locale: [''],
   });
 
+  /** Datos del administrador inicial (COMPANY_ADMIN). Requerido al crear; opcional (bajo demanda) al editar. */
+  protected readonly adminForm = this.fb.nonNullable.group({
+    email: ['', [Validators.required, Validators.email]],
+    firstName: ['', [Validators.required]],
+    lastName: ['', [Validators.required]],
+    employeeCode: [''],
+    password: ['', [Validators.required, Validators.minLength(8)]],
+  });
+
+  protected readonly showAdminForm = signal(false);
+  protected readonly provisioningAdmin = signal(false);
+
   private readonly formStatus = toSignal(this.form.statusChanges, { initialValue: this.form.status });
   protected readonly formValid = computed(() => this.formStatus() === 'VALID');
+
+  private readonly adminStatus = toSignal(this.adminForm.statusChanges, { initialValue: this.adminForm.status });
+  protected readonly adminValid = computed(() => this.adminStatus() === 'VALID');
+
+  /** Al crear se exige también el administrador inicial; al editar, solo los datos de la empresa. */
+  protected readonly canSave = computed(() => this.formValid() && (this.isEdit() || this.adminValid()));
 
   constructor() {
     if (this.companyId) {
@@ -215,9 +305,6 @@ export class CompanyFormComponent {
   }
 
   protected save(): void {
-    if (this.form.invalid) {
-      return;
-    }
     const raw = this.form.getRawValue();
     const payload = {
       name: raw.name,
@@ -226,20 +313,85 @@ export class CompanyFormComponent {
       timezone: raw.timezone || undefined,
       locale: raw.locale || undefined,
     };
+
+    if (this.companyId) {
+      if (this.form.invalid) {
+        return;
+      }
+      this.saving.set(true);
+      this.service.update(this.companyId, payload).subscribe({
+        next: () => {
+          this.notify.success('Empresa actualizada.');
+          void this.router.navigate(['/companies']);
+        },
+        error: () => {
+          this.saving.set(false);
+          this.notify.error('No se pudo guardar la empresa.');
+        },
+      });
+      return;
+    }
+
+    // Alta: se crea la empresa y, a continuación, su administrador inicial.
+    if (this.form.invalid || this.adminForm.invalid) {
+      return;
+    }
     this.saving.set(true);
-    const request$ = this.companyId
-      ? this.service.update(this.companyId, payload)
-      : this.service.create({ code: raw.code, ...payload });
-    request$.subscribe({
+    this.service.create({ code: raw.code, ...payload }).subscribe({
+      next: (company) => this.provisionInitialAdmin(company.id),
+      error: () => {
+        this.saving.set(false);
+        this.notify.error('No se pudo crear la empresa.');
+      },
+    });
+  }
+
+  /** Aprovisiona el COMPANY_ADMIN de la empresa recién creada. */
+  private provisionInitialAdmin(companyId: string): void {
+    this.service.provisionAdmin(companyId, this.adminPayload()).subscribe({
       next: () => {
-        this.notify.success(this.companyId ? 'Empresa actualizada.' : 'Empresa creada.');
+        this.notify.success('Empresa creada y administrador aprovisionado.');
         void this.router.navigate(['/companies']);
       },
       error: () => {
         this.saving.set(false);
-        this.notify.error('No se pudo guardar la empresa.');
+        this.notify.error(
+          'La empresa se creó, pero no se pudo aprovisionar el administrador. Reintentá desde la ficha de la empresa.',
+        );
+        void this.router.navigate(['/companies', companyId, 'edit']);
       },
     });
+  }
+
+  /** Aprovisiona un administrador desde la ficha de la empresa (modo edición / recuperación). */
+  protected provisionAdmin(): void {
+    if (this.adminForm.invalid || !this.companyId) {
+      return;
+    }
+    this.provisioningAdmin.set(true);
+    this.service.provisionAdmin(this.companyId, this.adminPayload()).subscribe({
+      next: () => {
+        this.notify.success('Administrador aprovisionado.');
+        this.adminForm.reset();
+        this.showAdminForm.set(false);
+        this.provisioningAdmin.set(false);
+      },
+      error: () => {
+        this.provisioningAdmin.set(false);
+        this.notify.error('No se pudo aprovisionar el administrador.');
+      },
+    });
+  }
+
+  private adminPayload() {
+    const a = this.adminForm.getRawValue();
+    return {
+      email: a.email,
+      firstName: a.firstName,
+      lastName: a.lastName,
+      password: a.password,
+      employeeCode: a.employeeCode || undefined,
+    };
   }
 
   protected toggleStatus(company: Company): void {

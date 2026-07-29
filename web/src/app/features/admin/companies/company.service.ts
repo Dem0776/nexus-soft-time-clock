@@ -4,7 +4,14 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
 import { PageResponse } from '../../../core/models/common.models';
-import { Company, CompanyStatus, CreateCompany, UpdateCompany } from './company.models';
+import {
+  Company,
+  CompanyStatus,
+  CreateCompany,
+  ProvisionAdmin,
+  ProvisionedAdmin,
+  UpdateCompany,
+} from './company.models';
 
 /** Cliente REST de administración de empresas (RF-13). */
 @Injectable({ providedIn: 'root' })
@@ -39,5 +46,10 @@ export class CompanyService {
 
   setStatus(id: string, status: CompanyStatus): Observable<Company> {
     return this.http.patch<Company>(`${this.base}/${id}/status`, { status });
+  }
+
+  /** Aprovisiona el administrador inicial (COMPANY_ADMIN) de la empresa (solo SUPER_ADMIN). */
+  provisionAdmin(companyId: string, request: ProvisionAdmin): Observable<ProvisionedAdmin> {
+    return this.http.post<ProvisionedAdmin>(`${this.base}/${companyId}/admin`, request);
   }
 }

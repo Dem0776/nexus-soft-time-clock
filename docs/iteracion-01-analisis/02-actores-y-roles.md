@@ -53,18 +53,29 @@ Formato `recurso:acción`. Acciones: `read`, `create`, `update`, `delete`, `expo
 | Permiso | SUPER_ADMIN | COMPANY_ADMIN | HR_ADMIN | SUPERVISOR | AUDITOR | EMPLOYEE |
 |---|:--:|:--:|:--:|:--:|:--:|:--:|
 | `company:manage` | ✅ | — | — | — | — | — |
-| `user:manage` | ✅ | ✅ | — | — | — | — |
-| `role:manage` | ✅ | ✅ | — | — | — | — |
-| `worksite:manage` | ✅ | ✅ | — | — | — | — |
-| `project:manage` | ✅ | ✅ | ✅ | — | — | — |
-| `schedule:manage` | ✅ | ✅ | ✅ | — | — | — |
-| `geofence:manage` | ✅ | ✅ | — | — | — | — |
-| `attendance:read` | ✅ | ✅ | ✅ | ✅ (su ámbito) | — | ✅ (propia) |
+| `user:manage` | — | ✅ | — | — | — | — |
+| `role:manage` | — | ✅ | — | — | — | — |
+| `worksite:manage` | — | ✅ | — | — | — | — |
+| `project:manage` | — | ✅ | ✅ | — | — | — |
+| `schedule:manage` | — | ✅ | ✅ | — | — | — |
+| `geofence:manage` | — | ✅ | — | — | — | — |
+| `attendance:read` | — | ✅ | ✅ | ✅ (su ámbito) | — | ✅ (propia) |
 | `attendance:register` | — | — | — | — | — | ✅ |
-| `incident:approve` | ✅ | ✅ | ✅ | ✅ (su ámbito) | — | — |
-| `report:export` | ✅ | ✅ | ✅ | ✅ (su ámbito) | — | — |
-| `audit:read` | ✅ | ✅ | — | — | ✅ | — |
-| `dashboard:read` | ✅ | ✅ | ✅ | ✅ (su ámbito) | — | — |
-| `sync:read` | ✅ | ✅ | — | ✅ | — | — |
+| `incident:approve` | — | ✅ | ✅ | ✅ (su ámbito) | — | — |
+| `report:export` | — | ✅ | ✅ | ✅ (su ámbito) | — | — |
+| `audit:read` | — | ✅ | — | — | ✅ | — |
+| `dashboard:read` | — | ✅ | ✅ | ✅ (su ámbito) | — | — |
+| `sync:read` | — | ✅ | — | ✅ | — | — |
 
-> El aislamiento **multi-tenant** es transversal a toda la matriz: ningún rol (excepto SUPER_ADMIN) puede acceder a datos de otro tenant. Ver [RN-30..RN-33](04-reglas-de-negocio.md).
+> **SUPER_ADMIN es un administrador de plataforma, no cross-tenant.** Su único permiso es
+> `company:manage`: gestiona empresas (tenants) y configuración global, pero **no accede a los datos
+> operativos de ningún tenant** (asistencias, reportes, incidencias, usuarios, etc.). Al crear una
+> empresa aprovisiona su **COMPANY_ADMIN inicial** desde la propia superficie de gestión de empresas
+> (endpoint gated por `company:manage`); a partir de ahí, ese COMPANY_ADMIN administra los datos del
+> tenant. Esta decisión se implementa recortando los permisos del rol plantilla SUPER_ADMIN
+> (migración `V19`); el modelo RBAC sigue soportando técnicamente concederle más permisos si en el
+> futuro se optara por un modo cross-tenant o selector de tenant.
+
+> El aislamiento **multi-tenant** es transversal a toda la matriz: ningún rol puede acceder a datos
+> de otro tenant, y SUPER_ADMIN directamente no opera sobre datos de tenants. Ver
+> [RN-30..RN-33](04-reglas-de-negocio.md).
