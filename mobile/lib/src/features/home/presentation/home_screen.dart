@@ -58,7 +58,14 @@ class HomeScreen extends ConsumerWidget {
               title: 'Registrar asistencia',
               subtitle: 'Entrada / salida con QR y GPS',
               highlighted: true,
-              onTap: () => context.go('/attendance'),
+              onTap: () => context.push('/attendance'),
+            ),
+            const SizedBox(height: 12),
+            _ActionCard(
+              icon: Icons.history,
+              title: 'Mi historial',
+              subtitle: 'Mi historial de asistencia',
+              onTap: () => context.push('/attendance/history'),
             ),
             const SizedBox(height: 12),
             _ActionCard(

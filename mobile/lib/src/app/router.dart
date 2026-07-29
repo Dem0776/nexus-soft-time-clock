@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -13,8 +14,17 @@ import '../features/vacations/presentation/vacations_screen.dart';
 /// fuerza /login; con sesión activa se evita volver a /login. Feature-first: cada
 /// feature aporta sus rutas.
 final routerProvider = Provider<GoRouter>((ref) {
+  // Refresca el redirect del router cuando cambia la sesión (login/logout). Sin esto,
+  // GoRouter solo re-evalúa el redirect ante navegación, no ante cambios de estado.
+  final authListenable = ValueNotifier<bool>(ref.read(authControllerProvider).isAuthenticated);
+  ref.listen(authControllerProvider, (previous, next) {
+    authListenable.value = next.isAuthenticated;
+  });
+  ref.onDispose(authListenable.dispose);
+
   return GoRouter(
     initialLocation: '/',
+    refreshListenable: authListenable,
     redirect: (context, state) {
       final authenticated = ref.read(authControllerProvider).isAuthenticated;
       final loggingIn = state.matchedLocation == '/login';

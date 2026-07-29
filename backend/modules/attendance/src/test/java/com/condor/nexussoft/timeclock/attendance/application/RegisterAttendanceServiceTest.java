@@ -316,7 +316,7 @@ class RegisterAttendanceServiceTest {
     @Test
     void entrada_dentroDeVentana_trasTolerancia_esAceptadaYMarcadaComoRetardo() {
         baseStubsWithPolicy(WorkSitePolicyPort.SitePolicy.permissive());
-        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), any())).thenReturn(true);
+        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), eq(userId), any(), any())).thenReturn(true);
         withinWindowStub(12);   // 12 min tras la tolerancia
 
         AttendanceResult result = service.register(tenantId, userId, cmd("ENTRADA"));
@@ -330,7 +330,7 @@ class RegisterAttendanceServiceTest {
     @Test
     void entrada_dentroDeTolerancia_esAceptadaSinRetardo() {
         baseStubsWithPolicy(WorkSitePolicyPort.SitePolicy.permissive());
-        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), any())).thenReturn(true);
+        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), eq(userId), any(), any())).thenReturn(true);
         withinWindowStub(0);    // puntual (dentro de tolerancia)
 
         AttendanceResult result = service.register(tenantId, userId, cmd("ENTRADA"));
@@ -345,7 +345,7 @@ class RegisterAttendanceServiceTest {
         baseStubsWithPolicy(WorkSitePolicyPort.SitePolicy.permissive());
         when(attendance.findLastAcceptedEvent(tenantId, userId))
                 .thenReturn(Optional.of(new LastEvent(AttendanceEventType.ENTRADA, siteId)));
-        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), any())).thenReturn(true);
+        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), eq(userId), any(), any())).thenReturn(true);
         withinWindowStub(30);   // el retardo solo aplica a ENTRADA (RN-16)
 
         AttendanceResult result = service.register(tenantId, userId, cmd("SALIDA"));
