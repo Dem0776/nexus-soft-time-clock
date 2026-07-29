@@ -73,6 +73,18 @@ export const routes: Routes = [
           import('./features/admin/companies/companies.component').then((m) => m.CompaniesComponent),
       },
       {
+        path: 'companies/new',
+        canActivate: [requirePermission('company:manage')],
+        loadComponent: () =>
+          import('./features/admin/companies/company-form.component').then((m) => m.CompanyFormComponent),
+      },
+      {
+        path: 'companies/:id/edit',
+        canActivate: [requirePermission('company:manage')],
+        loadComponent: () =>
+          import('./features/admin/companies/company-form.component').then((m) => m.CompanyFormComponent),
+      },
+      {
         path: 'users',
         canActivate: [requirePermission('user:manage')],
         loadComponent: () => import('./features/admin/users/users.component').then((m) => m.UsersComponent),
@@ -89,6 +101,18 @@ export const routes: Routes = [
           import('./features/admin/work-sites/work-sites.component').then((m) => m.WorkSitesComponent),
       },
       {
+        path: 'work-sites/new',
+        canActivate: [requirePermission('worksite:manage')],
+        loadComponent: () =>
+          import('./features/admin/work-sites/work-site-form.component').then((m) => m.WorkSiteFormComponent),
+      },
+      {
+        path: 'work-sites/:id/edit',
+        canActivate: [requirePermission('worksite:manage')],
+        loadComponent: () =>
+          import('./features/admin/work-sites/work-site-form.component').then((m) => m.WorkSiteFormComponent),
+      },
+      {
         path: 'work-sites/:id/geofence',
         canActivate: [requirePermission('geofence:manage')],
         loadComponent: () =>
@@ -100,10 +124,34 @@ export const routes: Routes = [
         loadComponent: () => import('./features/admin/projects/projects.component').then((m) => m.ProjectsComponent),
       },
       {
+        path: 'projects/new',
+        canActivate: [requirePermission('project:manage')],
+        loadComponent: () =>
+          import('./features/admin/projects/project-form.component').then((m) => m.ProjectFormComponent),
+      },
+      {
+        path: 'projects/:id/edit',
+        canActivate: [requirePermission('project:manage')],
+        loadComponent: () =>
+          import('./features/admin/projects/project-form.component').then((m) => m.ProjectFormComponent),
+      },
+      {
         path: 'scheduling',
         canActivate: [requirePermission('schedule:manage')],
         loadComponent: () =>
           import('./features/admin/scheduling/scheduling.component').then((m) => m.SchedulingComponent),
+      },
+      {
+        path: 'scheduling/new',
+        canActivate: [requirePermission('schedule:manage')],
+        loadComponent: () =>
+          import('./features/admin/scheduling/schedule-form.component').then((m) => m.ScheduleFormComponent),
+      },
+      {
+        path: 'scheduling/:id/edit',
+        canActivate: [requirePermission('schedule:manage')],
+        loadComponent: () =>
+          import('./features/admin/scheduling/schedule-form.component').then((m) => m.ScheduleFormComponent),
       },
       {
         path: 'event-types',
