@@ -50,6 +50,15 @@ class Me {
   final List<String> roles;
   final List<String> permissions;
 
+  bool get isCompanyAdmin => roles.contains('COMPANY_ADMIN');
+  bool get isHrAdmin => roles.contains('HR_ADMIN');
+
+  /// Habilita la sección de administración (bandeja de aprobación de vacaciones).
+  /// Se prioriza el permiso `vacation:approve` para replicar el criterio del portal web
+  /// (`requirePermission('vacation:approve')`); los roles admin y platformAdmin son respaldo.
+  bool get canAdminister =>
+      permissions.contains('vacation:approve') || platformAdmin || isCompanyAdmin || isHrAdmin;
+
   factory Me.fromJson(Map<String, dynamic> json) => Me(
         userId: json['userId'] as String,
         tenantId: json['tenantId'] as String?,

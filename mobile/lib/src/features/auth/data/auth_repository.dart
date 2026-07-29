@@ -43,3 +43,7 @@ class AuthRepository {
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => AuthRepository(ref.read(dioProvider), ref.read(secureTokenStoreProvider)),
 );
+
+/// Sesión del usuario autenticado (roles/permisos vía GET /auth/me). Se usa para
+/// condicionar la UI por rol (p. ej. la sección de administración en el Home).
+final meProvider = FutureProvider<Me>((ref) => ref.read(authRepositoryProvider).me());

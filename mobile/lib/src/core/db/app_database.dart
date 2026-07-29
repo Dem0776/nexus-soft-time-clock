@@ -48,6 +48,10 @@ class AppDatabase extends _$AppDatabase {
     return rows.length;
   }
 
+  /// Vacía la cola local completa. Se usa al cerrar sesión para que las marcaciones de un
+  /// usuario no se atribuyan al siguiente (la tabla es global del dispositivo, sin scope de usuario).
+  Future<void> clearAll() => delete(pendingAttendanceOps).go();
+
   Future<PendingAttendanceOp?> findByUuid(String operationUuid) {
     return (select(pendingAttendanceOps)..where((t) => t.operationUuid.equals(operationUuid)))
         .getSingleOrNull();

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/admin_vacations/presentation/admin_vacations_screen.dart';
 import '../features/attendance/presentation/attendance_history_screen.dart';
 import '../features/attendance/presentation/attendance_screen.dart';
 import '../features/auth/application/auth_controller.dart';
@@ -47,6 +48,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/profile', name: 'profile', builder: (context, state) => const ProfileScreen()),
       GoRoute(path: '/vacations', name: 'vacations', builder: (context, state) => const VacationsScreen()),
+      GoRoute(
+        path: '/admin/vacations',
+        name: 'adminVacations',
+        builder: (context, state) => const AdminVacationsScreen(),
+      ),
     ],
   );
 });

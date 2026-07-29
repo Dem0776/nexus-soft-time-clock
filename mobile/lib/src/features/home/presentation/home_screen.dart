@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../auth/application/auth_controller.dart';
+import '../../auth/data/auth_repository.dart';
 
 /// Pantalla principal tras iniciar sesión: accesos a registro de asistencia, perfil
 /// y vacaciones. Diseño de tarjetas consistente con la marca (índigo).
@@ -12,6 +13,12 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    // Roles del usuario (GET /auth/me). Degrada en silencio: si carga/falla o no es
+    // admin, la sección de administración simplemente no aparece.
+    final canAdminister = ref.watch(meProvider).maybeWhen(
+          data: (me) => me.canAdminister,
+          orElse: () => false,
+        );
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nexus Soft Time Clock'),
@@ -81,6 +88,18 @@ class HomeScreen extends ConsumerWidget {
               subtitle: 'Días disponibles y solicitudes',
               onTap: () => context.push('/vacations'),
             ),
+
+            if (canAdminister) ...[
+              const SizedBox(height: 28),
+              Text('Administración', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 12),
+              _ActionCard(
+                icon: Icons.fact_check_outlined,
+                title: 'Aprobar vacaciones',
+                subtitle: 'Revisa y resuelve solicitudes del equipo',
+                onTap: () => context.push('/admin/vacations'),
+              ),
+            ],
           ],
         ),
       ),
