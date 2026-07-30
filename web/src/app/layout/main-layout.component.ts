@@ -11,6 +11,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { AuthService } from '../core/auth/auth.service';
 import { AuthStore } from '../core/auth/auth.store';
 import { ThemeService } from '../core/theme/theme.service';
+import { roleLabel } from '../features/admin/roles/role.models';
 
 /**
  * Shell de la aplicación autenticada: topbar (marca + tema + usuario) y sidenav de
@@ -98,8 +99,8 @@ import { ThemeService } from '../core/theme/theme.service';
         <mat-menu #userMenu="matMenu">
           <div class="menu-head">
             <div class="who">{{ userLabel() }}</div>
-            <div class="muted" style="font-size:.82rem">Tenant: {{ user()?.tenantId ?? 'Plataforma' }}</div>
-            <div class="muted" style="font-size:.82rem">{{ (user()?.roles ?? []).join(', ') }}</div>
+            <div class="muted" style="font-size:.82rem">{{ tenantLabel() }}</div>
+            <div class="muted" style="font-size:.82rem">{{ rolesLabel() }}</div>
           </div>
           <mat-divider></mat-divider>
           <button mat-menu-item (click)="logout()">
@@ -265,7 +266,17 @@ export class MainLayoutComponent {
 
   protected userLabel(): string {
     const roles = this.store.user()?.roles ?? [];
-    return roles.length > 0 ? roles[0] : 'Usuario';
+    return roles.length > 0 ? roleLabel(roles[0]) : 'Usuario';
+  }
+
+  /** Roles del usuario en español, separados por coma (p. ej. «Super Administrador»). */
+  protected rolesLabel(): string {
+    return (this.store.user()?.roles ?? []).map(roleLabel).join(', ');
+  }
+
+  /** Ámbito legible del usuario, sin ids (Plataforma para admins de plataforma). */
+  protected tenantLabel(): string {
+    return this.store.user()?.platformAdmin ? 'Plataforma' : 'Empresa';
   }
 
   /** Iniciales para el avatar, derivadas del rol principal (p. ej. SUPER_ADMIN → SA). */
