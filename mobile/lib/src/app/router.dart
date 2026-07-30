@@ -6,6 +6,7 @@ import '../features/admin_vacations/presentation/admin_vacations_screen.dart';
 import '../features/attendance/presentation/attendance_history_screen.dart';
 import '../features/attendance/presentation/attendance_screen.dart';
 import '../features/auth/application/auth_controller.dart';
+import '../features/auth/presentation/change_password_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
@@ -47,6 +48,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AttendanceHistoryScreen(),
       ),
       GoRoute(path: '/profile', name: 'profile', builder: (context, state) => const ProfileScreen()),
+      GoRoute(
+        path: '/profile/change-password',
+        name: 'changePassword',
+        builder: (context, state) => const ChangePasswordScreen(),
+      ),
       GoRoute(path: '/vacations', name: 'vacations', builder: (context, state) => const VacationsScreen()),
       GoRoute(
         path: '/admin/vacations',

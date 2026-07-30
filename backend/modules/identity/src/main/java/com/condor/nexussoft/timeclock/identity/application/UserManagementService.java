@@ -7,6 +7,7 @@ import com.condor.nexussoft.timeclock.identity.domain.port.in.UserCommands;
 import com.condor.nexussoft.timeclock.identity.domain.port.in.UserManagementUseCase;
 import com.condor.nexussoft.timeclock.identity.domain.port.in.UserView;
 import com.condor.nexussoft.timeclock.identity.domain.port.out.PasswordHasherPort;
+import com.condor.nexussoft.timeclock.identity.domain.port.out.RefreshTokenStorePort;
 import com.condor.nexussoft.timeclock.identity.domain.port.out.UserAdminRepositoryPort;
 import com.condor.nexussoft.timeclock.shared.domain.DomainException;
 import com.condor.nexussoft.timeclock.shared.domain.Paged;
@@ -22,10 +23,13 @@ public class UserManagementService implements UserManagementUseCase {
 
     private final UserAdminRepositoryPort users;
     private final PasswordHasherPort passwordHasher;
+    private final RefreshTokenStorePort refreshTokens;
 
-    public UserManagementService(UserAdminRepositoryPort users, PasswordHasherPort passwordHasher) {
+    public UserManagementService(UserAdminRepositoryPort users, PasswordHasherPort passwordHasher,
+                                 RefreshTokenStorePort refreshTokens) {
         this.users = users;
         this.passwordHasher = passwordHasher;
+        this.refreshTokens = refreshTokens;
     }
 
     @Override
@@ -60,6 +64,17 @@ public class UserManagementService implements UserManagementUseCase {
     public UserView updateStatus(UUID tenantId, UUID userId, String status) {
         return users.updateStatus(userId, tenantId, status)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario", userId));
+    }
+
+    @Override
+    @Transactional
+    public UserView resetPassword(UUID tenantId, UUID userId, String newPassword) {
+        String passwordHash = passwordHasher.hash(newPassword);
+        UserView view = users.updatePassword(userId, tenantId, passwordHash)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario", userId));
+        // Cierra las sesiones activas del usuario afectado: la contraseña anterior ya no vale.
+        refreshTokens.revokeAllForUser(userId);
+        return view;
     }
 
     @Override

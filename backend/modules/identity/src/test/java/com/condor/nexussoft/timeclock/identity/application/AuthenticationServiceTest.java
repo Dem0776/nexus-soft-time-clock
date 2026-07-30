@@ -83,6 +83,44 @@ class AuthenticationServiceTest {
     }
 
     @Test
+    void changePassword_conActualCorrecta_persisteNuevoHash() {
+        User user = activeUser();
+        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        when(passwordHasher.matches("actual", "hash")).thenReturn(true);
+        when(passwordHasher.hash("nuevaClave1")).thenReturn("nuevo-hash");
+
+        service.changePassword(user.getId(), "actual", "nuevaClave1");
+
+        verify(users).updatePasswordHash(user.getId(), "nuevo-hash");
+        verify(refreshTokens).revokeAllForUser(user.getId());   // cierra sesiones activas
+    }
+
+    @Test
+    void changePassword_conActualIncorrecta_lanzaYNoActualiza() {
+        User user = activeUser();
+        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        when(passwordHasher.matches("mala", "hash")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.changePassword(user.getId(), "mala", "nuevaClave1"))
+                .isInstanceOf(InvalidCredentialsException.class);
+
+        verify(users, never()).updatePasswordHash(any(), any());
+        verify(passwordHasher, never()).hash(any());
+        verify(refreshTokens, never()).revokeAllForUser(any());
+    }
+
+    @Test
+    void changePassword_usuarioInexistente_lanza() {
+        UUID id = UUID.randomUUID();
+        when(users.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.changePassword(id, "actual", "nuevaClave1"))
+                .isInstanceOf(InvalidCredentialsException.class);
+
+        verify(users, never()).updatePasswordHash(any(), any());
+    }
+
+    @Test
     void refresh_conTokenReutilizado_revocaLaFamilia() {
         UUID familyId = UUID.randomUUID();
         RefreshToken reused = new RefreshToken(UUID.randomUUID(), familyId, UUID.randomUUID(), tenantId,

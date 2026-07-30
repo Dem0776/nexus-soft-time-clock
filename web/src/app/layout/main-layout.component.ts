@@ -1,6 +1,7 @@
 import { Component, computed, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
@@ -10,6 +11,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 
 import { AuthService } from '../core/auth/auth.service';
 import { AuthStore } from '../core/auth/auth.store';
+import { ChangePasswordDialogComponent } from '../core/auth/change-password-dialog.component';
 import { ThemeService } from '../core/theme/theme.service';
 import { roleLabel } from '../features/admin/roles/role.models';
 
@@ -103,6 +105,10 @@ import { roleLabel } from '../features/admin/roles/role.models';
             <div class="muted" style="font-size:.82rem">{{ rolesLabel() }}</div>
           </div>
           <mat-divider></mat-divider>
+          <button mat-menu-item (click)="openChangePassword()">
+            <mat-icon>lock_reset</mat-icon>
+            <span>Cambiar contraseña</span>
+          </button>
           <button mat-menu-item (click)="logout()">
             <mat-icon>logout</mat-icon>
             <span>Cerrar sesión</span>
@@ -249,6 +255,7 @@ export class MainLayoutComponent {
   private readonly authService = inject(AuthService);
   private readonly store = inject(AuthStore);
   private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
   protected readonly theme = inject(ThemeService);
 
   protected readonly user = this.store.user;
@@ -285,6 +292,18 @@ export class MainLayoutComponent {
     const parts = label.split(/[_\s]+/).filter(Boolean);
     const letters = parts.length >= 2 ? parts[0][0] + parts[1][0] : label.slice(0, 2);
     return letters.toUpperCase();
+  }
+
+  protected openChangePassword(): void {
+    this.dialog
+      .open(ChangePasswordDialogComponent, { width: '460px', maxWidth: '96vw', autoFocus: false })
+      .afterClosed()
+      .subscribe((changed) => {
+        // El cambio revoca las sesiones activas (incluida esta): forzamos re-login.
+        if (changed) {
+          this.logout();
+        }
+      });
   }
 
   protected logout(): void {

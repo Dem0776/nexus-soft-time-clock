@@ -11,6 +11,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Endpoints de autenticación (API v1). Login y refresh son públicos; {@code /me}
@@ -43,6 +44,14 @@ public class AuthController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logout(@Valid @RequestBody RefreshRequest request) {
         authentication.logout(request.refreshToken());
+    }
+
+    @PostMapping("/change-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(@Valid @RequestBody ChangePasswordRequest request,
+                               @AuthenticationPrincipal Jwt jwt) {
+        authentication.changePassword(
+                UUID.fromString(jwt.getSubject()), request.currentPassword(), request.newPassword());
     }
 
     @GetMapping("/me")

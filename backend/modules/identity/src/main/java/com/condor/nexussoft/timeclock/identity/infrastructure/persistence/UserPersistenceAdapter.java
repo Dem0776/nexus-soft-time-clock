@@ -45,6 +45,14 @@ public class UserPersistenceAdapter implements UserRepositoryPort {
         });
     }
 
+    @Override
+    public void updatePasswordHash(UUID userId, String newPasswordHash) {
+        jpa.findById(userId).ifPresent(entity -> {
+            entity.setPasswordHash(newPasswordHash);
+            jpa.save(entity);
+        });
+    }
+
     private User toDomain(UserJpaEntity e) {
         Set<Role> roles = e.getRoles().stream()
                 .map(r -> new Role(

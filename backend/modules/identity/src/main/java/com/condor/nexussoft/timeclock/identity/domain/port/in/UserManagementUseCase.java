@@ -16,5 +16,8 @@ public interface UserManagementUseCase {
 
     UserView updateStatus(UUID tenantId, UUID userId, String status);
 
+    /** Restablece la contraseña de un usuario del tenant (operación administrativa). */
+    UserView resetPassword(UUID tenantId, UUID userId, String newPassword);
+
     UserView assignRoles(UUID tenantId, GranterAuthority granter, UUID userId, Set<String> roleCodes);
 }

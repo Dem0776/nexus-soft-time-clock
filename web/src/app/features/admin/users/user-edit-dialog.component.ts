@@ -1,8 +1,8 @@
 import { Component, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatDialog, MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -11,6 +11,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { forkJoin, of } from 'rxjs';
 
+import { ConfirmDialogComponent } from '../../../core/ui/confirm-dialog.component';
 import { NotificationService } from '../../../core/ui/notification.service';
 import { StatusChipComponent } from '../../../core/ui/status-chip.component';
 import { Role } from '../roles/role.models';
@@ -126,6 +127,30 @@ export interface UserEditData {
           </mat-form-field>
           <div class="chip-cell"><app-status-chip [status]="form.controls.status.value" /></div>
         </div>
+
+        @if (!showReset()) {
+          <button mat-stroked-button type="button" (click)="showReset.set(true)">
+            <mat-icon>lock_reset</mat-icon> Restablecer contraseña
+          </button>
+        } @else {
+          <div class="reset-block">
+            <mat-form-field appearance="outline" class="full">
+              <mat-label>Nueva contraseña</mat-label>
+              <mat-icon matPrefix>lock</mat-icon>
+              <input matInput [type]="showResetPw() ? 'text' : 'password'" [formControl]="resetControl" autocomplete="new-password" />
+              <button mat-icon-button matSuffix type="button" (click)="showResetPw.set(!showResetPw())" [attr.aria-label]="showResetPw() ? 'Ocultar' : 'Mostrar'">
+                <mat-icon>{{ showResetPw() ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+              <mat-hint><a class="link" (click)="generateResetPassword()">Generar contraseña segura</a> · mínimo 8 caracteres</mat-hint>
+            </mat-form-field>
+            <div class="reset-actions">
+              <button mat-flat-button color="primary" type="button" [disabled]="resetControl.invalid || resetting()" (click)="resetPassword()">
+                <mat-icon>check</mat-icon> Aplicar
+              </button>
+              <button mat-button type="button" (click)="cancelReset()">Cancelar</button>
+            </div>
+          </div>
+        }
       </section>
 
       <!-- Roles -->
@@ -174,6 +199,10 @@ export interface UserEditData {
       .chip-cell { display: flex; align-items: center; }
       .opt-acc { margin-top: 6px; display: block; }
       .roles-list { display: flex; flex-direction: column; gap: var(--sp-2); }
+      .reset-block { margin-top: var(--sp-3); }
+      .reset-block .full { width: 100%; }
+      .reset-actions { display: flex; gap: var(--sp-2); }
+      .link { color: var(--brand); cursor: pointer; font-weight: 600; }
       .m-foot { display: flex; align-items: center; gap: 10px; padding: 14px 28px 18px; border-top: 1px solid var(--border); }
       .m-foot .fill { flex: 1; }
       @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
@@ -185,6 +214,7 @@ export class UserEditDialogComponent {
   private readonly userService = inject(UserService);
   private readonly profileService = inject(EmployeeProfileService);
   private readonly notify = inject(NotificationService);
+  private readonly dialog = inject(MatDialog);
   private readonly dialogRef = inject(MatDialogRef<UserEditDialogComponent, boolean>);
   protected readonly data = inject<UserEditData>(MAT_DIALOG_DATA);
 
@@ -193,6 +223,12 @@ export class UserEditDialogComponent {
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly roles = signal<string[]>([...this.data.user.roles]);
+
+  // Restablecimiento de contraseña (bajo demanda, acción sensible)
+  protected readonly showReset = signal(false);
+  protected readonly showResetPw = signal(false);
+  protected readonly resetting = signal(false);
+  protected readonly resetControl = this.fb.nonNullable.control('', [Validators.required, Validators.minLength(8)]);
 
   protected readonly form = this.fb.nonNullable.group({
     gender: [''],
@@ -244,6 +280,51 @@ export class UserEditDialogComponent {
 
   protected close(result: boolean): void {
     this.dialogRef.close(result);
+  }
+
+  protected generateResetPassword(): void {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#%';
+    let pw = '';
+    const rnd = new Uint32Array(14);
+    crypto.getRandomValues(rnd);
+    for (const n of rnd) pw += chars[n % chars.length];
+    this.resetControl.setValue(pw);
+    this.showResetPw.set(true);
+  }
+
+  protected cancelReset(): void {
+    this.resetControl.reset('');
+    this.showReset.set(false);
+    this.showResetPw.set(false);
+  }
+
+  protected resetPassword(): void {
+    if (this.resetControl.invalid) return;
+    const name = `${this.data.user.firstName} ${this.data.user.lastName}`.trim();
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Restablecer contraseña',
+          message: `¿Confirmás establecer una nueva contraseña para "${name}"? Deberás comunicársela para que pueda ingresar.`,
+          color: 'warn',
+        },
+      })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.resetting.set(true);
+        this.userService.resetPassword(this.data.user.id, this.resetControl.value).subscribe({
+          next: () => {
+            this.resetting.set(false);
+            this.notify.success('Contraseña restablecida.');
+            this.cancelReset();
+          },
+          error: () => {
+            this.resetting.set(false);
+            this.notify.error('No se pudo restablecer la contraseña.');
+          },
+        });
+      });
   }
 
   protected submit(): void {

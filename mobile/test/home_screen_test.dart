@@ -1,13 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus_time_clock/src/features/auth/data/auth_repository.dart';
+import 'package:nexus_time_clock/src/features/auth/domain/auth_models.dart';
 import 'package:nexus_time_clock/src/features/home/presentation/home_screen.dart';
 
 void main() {
   testWidgets('HomeScreen muestra el título, los accesos y permite cerrar sesión', (tester) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(home: HomeScreen()),
+      ProviderScope(
+        // Sin override, meProvider dispara la llamada real a /auth/me (dio), cuyo timer
+        // queda pendiente tras disponer el árbol. Lo fijamos a un usuario sin permisos admin.
+        overrides: [
+          meProvider.overrideWith(
+            (ref) => const Me(
+              userId: 'u1',
+              tenantId: 't1',
+              platformAdmin: false,
+              roles: [],
+              permissions: [],
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: HomeScreen()),
       ),
     );
 

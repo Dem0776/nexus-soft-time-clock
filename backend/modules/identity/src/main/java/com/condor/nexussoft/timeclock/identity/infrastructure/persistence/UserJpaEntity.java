@@ -82,6 +82,7 @@ public class UserJpaEntity {
     public Instant getLockedUntil() { return lockedUntil; }
     public Set<RoleJpaEntity> getRoles() { return roles; }
 
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public void setStatus(String status) { this.status = status; }
     public void setFailedLoginCount(int failedLoginCount) { this.failedLoginCount = failedLoginCount; }
     public void setLockedUntil(Instant lockedUntil) { this.lockedUntil = lockedUntil; }

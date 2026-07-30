@@ -118,6 +118,18 @@ public class AuthenticationService implements AuthenticationUseCase {
                 .ifPresent(token -> refreshTokens.revokeFamily(token.familyId()));  // idempotente
     }
 
+    @Override
+    @Transactional
+    public void changePassword(UUID userId, String currentPassword, String newPassword) {
+        User user = users.findById(userId).orElseThrow(InvalidCredentialsException::new);
+        if (!passwordHasher.matches(currentPassword, user.passwordHash())) {
+            throw new InvalidCredentialsException();
+        }
+        users.updatePasswordHash(userId, passwordHasher.hash(newPassword));
+        // Cierra todas las sesiones activas: los refresh tokens vigentes dejan de servir.
+        refreshTokens.revokeAllForUser(userId);
+    }
+
     // --- helpers -----------------------------------------------------
 
     private Optional<User> locateUser(LoginCommand command, Email email) {

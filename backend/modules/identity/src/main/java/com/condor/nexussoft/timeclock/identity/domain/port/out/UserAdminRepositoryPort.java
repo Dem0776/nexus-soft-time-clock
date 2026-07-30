@@ -21,5 +21,7 @@ public interface UserAdminRepositoryPort {
 
     Optional<UserView> updateStatus(UUID id, UUID tenantId, String status);
 
+    Optional<UserView> updatePassword(UUID id, UUID tenantId, String newPasswordHash);
+
     Optional<UserView> assignRoles(UUID id, UUID tenantId, Set<String> roleCodes);
 }

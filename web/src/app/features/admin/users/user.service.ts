@@ -35,4 +35,9 @@ export class UserService {
   assignRoles(id: string, roleCodes: string[]): Observable<User> {
     return this.http.put<User>(`${this.base}/${id}/roles`, { roleCodes });
   }
+
+  /** Restablece la contraseña de un usuario (operación administrativa, requiere user:manage). */
+  resetPassword(id: string, newPassword: string): Observable<User> {
+    return this.http.patch<User>(`${this.base}/${id}/password`, { newPassword });
+  }
 }
