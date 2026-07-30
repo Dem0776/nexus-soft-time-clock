@@ -15,5 +15,8 @@ public interface RefreshTokenStorePort {
     /** Revoca toda la familia (detección de reutilización, RN-41). */
     void revokeFamily(UUID familyId);
 
+    /** Revoca todas las sesiones activas del usuario (p. ej. tras cambiar la contraseña). */
+    void revokeAllForUser(UUID userId);
+
     void update(RefreshToken token);
 }

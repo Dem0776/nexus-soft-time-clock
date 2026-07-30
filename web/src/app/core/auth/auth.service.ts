@@ -35,6 +35,11 @@ export class AuthService {
     return this.me().pipe(tap((user) => this.store.setUser(user)));
   }
 
+  /** Cambio de contraseña del propio usuario autenticado (requiere la contraseña actual). */
+  changePassword(currentPassword: string, newPassword: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/auth/change-password`, { currentPassword, newPassword });
+  }
+
   logout(): void {
     const refreshToken = this.store.refreshTokenValue();
     if (refreshToken) {

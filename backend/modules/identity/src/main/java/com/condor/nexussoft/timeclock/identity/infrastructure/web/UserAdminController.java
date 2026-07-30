@@ -56,6 +56,11 @@ public class UserAdminController {
         return UserResponse.from(users.updateStatus(tenant(), id, r.status()));
     }
 
+    @PatchMapping("/{id}/password")
+    public UserResponse resetPassword(@PathVariable UUID id, @Valid @RequestBody ResetPasswordRequest r) {
+        return UserResponse.from(users.resetPassword(tenant(), id, r.newPassword()));
+    }
+
     @PutMapping("/{id}/roles")
     public UserResponse assignRoles(@PathVariable UUID id, @Valid @RequestBody AssignRolesRequest r,
                                     @AuthenticationPrincipal Jwt jwt) {

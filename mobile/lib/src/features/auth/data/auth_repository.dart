@@ -27,6 +27,14 @@ class AuthRepository {
     return Me.fromJson(response.data!);
   }
 
+  /// Cambio de contraseña del propio usuario (RF-01). Requiere la contraseña actual.
+  Future<void> changePassword(String currentPassword, String newPassword) async {
+    await _dio.post<void>(
+      '/auth/change-password',
+      data: {'currentPassword': currentPassword, 'newPassword': newPassword},
+    );
+  }
+
   Future<void> logout() async {
     final refreshToken = await _store.refreshToken();
     if (refreshToken != null) {

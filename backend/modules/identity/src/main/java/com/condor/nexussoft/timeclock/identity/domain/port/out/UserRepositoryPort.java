@@ -16,4 +16,7 @@ public interface UserRepositoryPort {
     Optional<User> findById(UUID id);
 
     void save(User user);
+
+    /** Actualiza solo el hash de contraseña (el {@link #save} general no toca credenciales). */
+    void updatePasswordHash(UUID userId, String newPasswordHash);
 }

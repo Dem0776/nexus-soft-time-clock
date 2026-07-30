@@ -4,8 +4,10 @@ import com.condor.nexussoft.timeclock.identity.domain.port.in.GranterAuthority;
 import com.condor.nexussoft.timeclock.identity.domain.port.in.UserCommands;
 import com.condor.nexussoft.timeclock.identity.domain.port.in.UserView;
 import com.condor.nexussoft.timeclock.identity.domain.port.out.PasswordHasherPort;
+import com.condor.nexussoft.timeclock.identity.domain.port.out.RefreshTokenStorePort;
 import com.condor.nexussoft.timeclock.identity.domain.port.out.UserAdminRepositoryPort;
 import com.condor.nexussoft.timeclock.shared.domain.AuthorizationException;
+import com.condor.nexussoft.timeclock.shared.domain.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +31,7 @@ class UserManagementServiceTest {
 
     @Mock UserAdminRepositoryPort users;
     @Mock PasswordHasherPort passwordHasher;
+    @Mock RefreshTokenStorePort refreshTokens;
 
     UserManagementService service;
     final UUID tenantId = UUID.randomUUID();
@@ -38,7 +41,7 @@ class UserManagementServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new UserManagementService(users, passwordHasher);
+        service = new UserManagementService(users, passwordHasher, refreshTokens);
     }
 
     private UserCommands.CreateUserCommand command(Set<String> roleCodes) {
@@ -99,6 +102,32 @@ class UserManagementServiceTest {
         assertThatThrownBy(() -> service.create(tenantId, companyAdmin, command(Set.of("ROOT"))))
                 .isInstanceOf(AuthorizationException.class);
         verify(users, never()).create(any(), any(), any(), any(), any(), any(), anySet());
+    }
+
+    // --- resetPassword -------------------------------------------------
+
+    @Test
+    void resetPassword_usuarioExistente_persisteNuevoHash() {
+        UUID userId = UUID.randomUUID();
+        when(passwordHasher.hash("nuevaClave1")).thenReturn("hashed");
+        when(users.updatePassword(userId, tenantId, "hashed")).thenReturn(Optional.of(anyUserView()));
+
+        UserView result = service.resetPassword(tenantId, userId, "nuevaClave1");
+
+        assertThat(result).isNotNull();
+        verify(users).updatePassword(userId, tenantId, "hashed");
+        verify(refreshTokens).revokeAllForUser(userId);   // cierra sesiones activas
+    }
+
+    @Test
+    void resetPassword_usuarioInexistente_lanzaYNoRevoca() {
+        UUID userId = UUID.randomUUID();
+        when(passwordHasher.hash("nuevaClave1")).thenReturn("hashed");
+        when(users.updatePassword(userId, tenantId, "hashed")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.resetPassword(tenantId, userId, "nuevaClave1"))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(refreshTokens, never()).revokeAllForUser(any());
     }
 
     // --- assignRoles ---------------------------------------------------

@@ -33,6 +33,11 @@ public class RefreshTokenPersistenceAdapter implements RefreshTokenStorePort {
     }
 
     @Override
+    public void revokeAllForUser(UUID userId) {
+        jpa.revokeAllForUser(userId, Instant.now());
+    }
+
+    @Override
     public void update(RefreshToken token) {
         jpa.save(toEntity(token));
     }

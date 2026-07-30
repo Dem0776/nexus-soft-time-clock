@@ -63,6 +63,14 @@ public class UserAdminPersistenceAdapter implements UserAdminRepositoryPort {
     }
 
     @Override
+    public Optional<UserView> updatePassword(UUID id, UUID tenantId, String newPasswordHash) {
+        return users.findByIdAndTenantId(id, tenantId).map(entity -> {
+            entity.setPasswordHash(newPasswordHash);
+            return toView(users.save(entity));
+        });
+    }
+
+    @Override
     public Optional<UserView> assignRoles(UUID id, UUID tenantId, Set<String> roleCodes) {
         return users.findByIdAndTenantId(id, tenantId).map(entity -> {
             entity.setRoles(resolveRoles(roleCodes));

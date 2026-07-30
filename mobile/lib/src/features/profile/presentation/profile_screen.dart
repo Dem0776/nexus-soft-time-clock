@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../data/profile_repository.dart';
 import '../domain/my_profile.dart';
@@ -46,6 +47,12 @@ class ProfileScreen extends ConsumerWidget {
                 _Row(icon: Icons.phone_outlined, label: 'Teléfono', value: p.emergencyContactPhone),
               ]),
               const SizedBox(height: 20),
+              OutlinedButton.icon(
+                onPressed: () => context.pushNamed('changePassword'),
+                icon: const Icon(Icons.lock_reset),
+                label: const Text('Cambiar contraseña'),
+              ),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   Icon(Icons.lock_outline, size: 16, color: theme.colorScheme.onSurfaceVariant),
