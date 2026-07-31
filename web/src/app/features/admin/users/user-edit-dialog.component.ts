@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,10 +12,13 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { forkJoin, of } from 'rxjs';
 
+import { AuthStore } from '../../../core/auth/auth.store';
 import { ConfirmDialogComponent } from '../../../core/ui/confirm-dialog.component';
 import { NotificationService } from '../../../core/ui/notification.service';
 import { StatusChipComponent } from '../../../core/ui/status-chip.component';
 import { Role } from '../roles/role.models';
+import { Device, DEVICE_STATUS_LABELS } from './device.models';
+import { DeviceService } from './device.service';
 import { EmployeeProfile, GENDERS } from './employee-profile.models';
 import { EmployeeProfileService } from './employee-profile.service';
 import { USER_STATUSES, User, UserStatus } from './user.models';
@@ -45,6 +49,7 @@ export interface UserEditData {
     MatExpansionModule,
     MatProgressBarModule,
     StatusChipComponent,
+    DatePipe,
   ],
   template: `
     <div class="m-head">
@@ -167,6 +172,48 @@ export interface UserEditData {
           }
         </div>
       </section>
+
+      <!-- Dispositivos vinculados (RF-28, RN-27) -->
+      @if (canManageDevices) {
+        <section class="fs">
+          <div class="fs-head"><mat-icon>smartphone</mat-icon><h4>Dispositivos</h4></div>
+          @if (devicesLoading()) {
+            <p class="muted">Cargando dispositivos…</p>
+          } @else if (devices().length === 0) {
+            <p class="muted">Este colaborador aún no tiene dispositivos registrados.</p>
+          } @else {
+            <div class="dev-list">
+              @for (d of devices(); track d.id) {
+                <div class="dev-row">
+                  <mat-icon class="dev-ic">{{ d.platform === 'IOS' ? 'phone_iphone' : 'phone_android' }}</mat-icon>
+                  <div class="dev-info">
+                    <span class="dev-model">{{ d.model || d.deviceIdentifier }}</span>
+                    <span class="muted dev-meta">
+                      {{ d.osVersion || d.platform }}
+                      @if (d.lastSeenAt) { <span class="sep">·</span> visto {{ d.lastSeenAt | date: 'short' }} }
+                    </span>
+                  </div>
+                  <span class="dev-status" [class.trusted]="d.status === 'TRUSTED'" [class.pending]="d.status === 'PENDING'" [class.blocked]="d.status === 'BLOCKED'">
+                    {{ statusLabel(d.status) }}
+                  </span>
+                  <div class="dev-actions">
+                    @if (d.status !== 'TRUSTED') {
+                      <button mat-stroked-button color="primary" type="button" [disabled]="devicesBusy()" (click)="approveDevice(d)">
+                        <mat-icon>verified_user</mat-icon> Aprobar
+                      </button>
+                    }
+                    @if (d.status !== 'BLOCKED') {
+                      <button mat-stroked-button color="warn" type="button" [disabled]="devicesBusy()" (click)="revokeDevice(d)">
+                        <mat-icon>block</mat-icon> Revocar
+                      </button>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </section>
+      }
     </form>
 
     <div class="m-foot">
@@ -202,6 +249,18 @@ export interface UserEditData {
       .reset-block { margin-top: var(--sp-3); }
       .reset-block .full { width: 100%; }
       .reset-actions { display: flex; gap: var(--sp-2); }
+      .dev-list { display: flex; flex-direction: column; gap: var(--sp-2); }
+      .dev-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+      .dev-row .dev-ic { color: var(--brand); flex: none; }
+      .dev-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+      .dev-model { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .dev-meta { font-size: var(--font-caption); }
+      .dev-meta .sep { margin: 0 5px; }
+      .dev-status { font-size: var(--font-caption); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; border-radius: 999px; padding: 3px 9px; border: 1px solid var(--border); color: var(--text-soft); flex: none; }
+      .dev-status.trusted { color: var(--ok, #157347); border-color: var(--ok, #157347); }
+      .dev-status.pending { color: var(--warn-strong, #9a6700); border-color: var(--warn-strong, #9a6700); }
+      .dev-status.blocked { color: var(--danger, #b42318); border-color: var(--danger, #b42318); }
+      .dev-actions { display: flex; gap: var(--sp-2); flex: none; }
       .link { color: var(--brand); cursor: pointer; font-weight: 600; }
       .m-foot { display: flex; align-items: center; gap: 10px; padding: 14px 28px 18px; border-top: 1px solid var(--border); }
       .m-foot .fill { flex: 1; }
@@ -213,6 +272,8 @@ export class UserEditDialogComponent {
   private readonly fb = inject(FormBuilder);
   private readonly userService = inject(UserService);
   private readonly profileService = inject(EmployeeProfileService);
+  private readonly deviceService = inject(DeviceService);
+  private readonly auth = inject(AuthStore);
   private readonly notify = inject(NotificationService);
   private readonly dialog = inject(MatDialog);
   private readonly dialogRef = inject(MatDialogRef<UserEditDialogComponent, boolean>);
@@ -229,6 +290,12 @@ export class UserEditDialogComponent {
   protected readonly showResetPw = signal(false);
   protected readonly resetting = signal(false);
   protected readonly resetControl = this.fb.nonNullable.control('', [Validators.required, Validators.minLength(8)]);
+
+  // Dispositivos vinculados (RF-28). Solo se cargan/gestionan con el permiso device:manage.
+  protected readonly canManageDevices = this.auth.hasPermission('device:manage');
+  protected readonly devices = signal<Device[]>([]);
+  protected readonly devicesLoading = signal(false);
+  protected readonly devicesBusy = signal(false);
 
   protected readonly form = this.fb.nonNullable.group({
     gender: [''],
@@ -263,6 +330,66 @@ export class UserEditDialogComponent {
       },
       error: () => this.loading.set(false),
     });
+    if (this.canManageDevices) {
+      this.loadDevices();
+    }
+  }
+
+  private loadDevices(): void {
+    this.devicesLoading.set(true);
+    this.deviceService.listByUser(this.data.user.id).subscribe({
+      next: (list) => {
+        this.devices.set(list);
+        this.devicesLoading.set(false);
+      },
+      error: () => this.devicesLoading.set(false),
+    });
+  }
+
+  protected statusLabel(status: Device['status']): string {
+    return DEVICE_STATUS_LABELS[status];
+  }
+
+  protected approveDevice(device: Device): void {
+    this.devicesBusy.set(true);
+    this.deviceService.approve(device.id).subscribe({
+      next: (updated) => {
+        this.devices.update((list) => list.map((d) => (d.id === updated.id ? updated : d)));
+        this.devicesBusy.set(false);
+        this.notify.success('Dispositivo aprobado.');
+      },
+      error: () => {
+        this.devicesBusy.set(false);
+        this.notify.error('No se pudo aprobar el dispositivo.');
+      },
+    });
+  }
+
+  protected revokeDevice(device: Device): void {
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Revocar dispositivo',
+          message: 'El colaborador no podrá registrar asistencia desde este dispositivo hasta que se apruebe de nuevo. ¿Continuar?',
+          color: 'warn',
+        },
+      })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.devicesBusy.set(true);
+        this.deviceService.revoke(device.id).subscribe({
+          next: (updated) => {
+            this.devices.update((list) => list.map((d) => (d.id === updated.id ? updated : d)));
+            this.devicesBusy.set(false);
+            this.notify.success('Dispositivo revocado.');
+          },
+          error: () => {
+            this.devicesBusy.set(false);
+            this.notify.error('No se pudo revocar el dispositivo.');
+          },
+        });
+      });
   }
 
   protected hasEmergency(): boolean {

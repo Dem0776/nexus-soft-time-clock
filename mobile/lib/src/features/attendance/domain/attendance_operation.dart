@@ -11,6 +11,9 @@ class AttendanceOperation {
     required this.eventType,
     required this.source,
     this.deviceId,
+    this.devicePlatform,
+    this.deviceModel,
+    this.deviceOsVersion,
     this.deviceTimeEpochMs,
     this.mockLocation = false,
     this.rootedOrJailbroken = false,
@@ -29,6 +32,9 @@ class AttendanceOperation {
   final String eventType;
   final String source;
   final String? deviceId;
+  final String? devicePlatform;
+  final String? deviceModel;
+  final String? deviceOsVersion;
   final int? deviceTimeEpochMs;
   final bool mockLocation;
   final bool rootedOrJailbroken;
@@ -47,6 +53,9 @@ class AttendanceOperation {
         'eventType': eventType,
         'source': source,
         if (deviceId != null) 'deviceId': deviceId,
+        if (devicePlatform != null) 'devicePlatform': devicePlatform,
+        if (deviceModel != null) 'deviceModel': deviceModel,
+        if (deviceOsVersion != null) 'deviceOsVersion': deviceOsVersion,
         if (deviceTimeEpochMs != null) 'deviceTimeEpochMs': deviceTimeEpochMs,
         'mockLocation': mockLocation,
         'rootedOrJailbroken': rootedOrJailbroken,

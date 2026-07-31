@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/db/app_database.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/storage/device_identity_store.dart';
 import '../data/attendance_sync_service.dart';
 import '../domain/attendance_operation.dart';
 
@@ -49,6 +50,9 @@ class AttendanceController extends Notifier<AttendanceUiState> {
       return;
     }
 
+    // Identidad estable del dispositivo (RF-28): el backend la usa para reconocer/enrolar (TOFU).
+    final device = await ref.read(deviceIdentityStoreProvider).current();
+
     final op = AttendanceOperation(
       operationUuid: _uuid.v4(),
       workSiteId: workSiteId,
@@ -58,6 +62,10 @@ class AttendanceController extends Notifier<AttendanceUiState> {
       accuracyM: position.accuracy,
       eventType: eventType,
       source: 'ONLINE',
+      deviceId: device.deviceId,
+      devicePlatform: device.platform,
+      deviceModel: device.model,
+      deviceOsVersion: device.osVersion,
       deviceTimeEpochMs: DateTime.now().millisecondsSinceEpoch,
       mockLocation: position.isMocked,
       gpsDisabled: !gpsEnabled,
@@ -125,7 +133,7 @@ class AttendanceController extends Notifier<AttendanceUiState> {
       case 'INVALID_SEQUENCE':
         return 'secuencia de marcaciones inválida';
       case 'UNTRUSTED_DEVICE':
-        return 'dispositivo no confiable';
+        return 'dispositivo no reconocido (pendiente de aprobación del administrador)';
       case 'PHOTO_REQUIRED':
         return 'se requiere evidencia fotográfica';
       case 'BIOMETRIC_REQUIRED':

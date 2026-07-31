@@ -25,5 +25,8 @@ public record RegisterAttendanceCommand(
         boolean biometricVerified,
         String evidenceBucket,
         String evidenceKey,
-        String evidenceHash) {
+        String evidenceHash,
+        String devicePlatform,
+        String deviceModel,
+        String deviceOsVersion) {
 }
