@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -12,15 +12,16 @@ import '../features/home/presentation/home_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import '../features/vacations/presentation/vacations_screen.dart';
 
-/// Router de la app (GoRouter) con redirect basado en la sesión: sin token válido se
-/// fuerza /login; con sesión activa se evita volver a /login. Feature-first: cada
-/// feature aporta sus rutas.
+/// Router de la app (GoRouter) con redirect basado en la sesión: mientras se restaura la
+/// sesión (`unknown`) se muestra un splash; sin token válido se fuerza /login; con sesión
+/// activa se evita volver a /login o /splash. Feature-first: cada feature aporta sus rutas.
 final routerProvider = Provider<GoRouter>((ref) {
-  // Refresca el redirect del router cuando cambia la sesión (login/logout). Sin esto,
-  // GoRouter solo re-evalúa el redirect ante navegación, no ante cambios de estado.
-  final authListenable = ValueNotifier<bool>(ref.read(authControllerProvider).isAuthenticated);
+  // Refresca el redirect del router cuando cambia el estado de sesión. Se sigue el `status`
+  // (no solo un bool): la transición unknown→unauthenticated también debe re-evaluar el
+  // redirect para salir del splash hacia /login.
+  final authListenable = ValueNotifier<AuthStatus>(ref.read(authControllerProvider).status);
   ref.listen(authControllerProvider, (previous, next) {
-    authListenable.value = next.isAuthenticated;
+    authListenable.value = next.status;
   });
   ref.onDispose(authListenable.dispose);
 
@@ -28,18 +29,27 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/',
     refreshListenable: authListenable,
     redirect: (context, state) {
-      final authenticated = ref.read(authControllerProvider).isAuthenticated;
-      final loggingIn = state.matchedLocation == '/login';
-      if (!authenticated && !loggingIn) {
-        return '/login';
+      final status = ref.read(authControllerProvider).status;
+      final location = state.matchedLocation;
+
+      // Restaurando sesión: mantener el splash hasta resolver.
+      if (status == AuthStatus.unknown) {
+        return location == '/splash' ? null : '/splash';
       }
-      if (authenticated && loggingIn) {
+
+      final authenticated = status == AuthStatus.authenticated;
+      final atAuthGate = location == '/login' || location == '/splash';
+      if (!authenticated) {
+        return location == '/login' ? null : '/login';
+      }
+      if (atAuthGate) {
         return '/';
       }
       return null;
     },
     routes: [
       GoRoute(path: '/', name: 'home', builder: (context, state) => const HomeScreen()),
+      GoRoute(path: '/splash', name: 'splash', builder: (context, state) => const _SplashScreen()),
       GoRoute(path: '/login', name: 'login', builder: (context, state) => const LoginScreen()),
       GoRoute(path: '/attendance', name: 'attendance', builder: (context, state) => const AttendanceScreen()),
       GoRoute(
@@ -62,3 +72,13 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// Pantalla de carga mientras se restaura la sesión al abrir la app.
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+  }
+}
