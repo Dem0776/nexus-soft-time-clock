@@ -33,6 +33,7 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
     private final QrValidationPort qrValidation;
     private final GeofenceCheckPort geofenceCheck;
     private final FraudCheckPort fraudCheck;
+    private final DeviceRecognitionPort deviceRecognition;
     private final WorkSitePolicyPort sitePolicy;
     private final SchedulePolicyPort schedulePolicy;
     private final EventTypeConfigPort eventTypeConfig;
@@ -42,6 +43,7 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
     public RegisterAttendanceService(AttendanceRepositoryPort attendance, IdempotencyStorePort idempotency,
                                      NonceGuardPort nonceGuard, QrValidationPort qrValidation,
                                      GeofenceCheckPort geofenceCheck, FraudCheckPort fraudCheck,
+                                     DeviceRecognitionPort deviceRecognition,
                                      WorkSitePolicyPort sitePolicy, SchedulePolicyPort schedulePolicy,
                                      EventTypeConfigPort eventTypeConfig, AttendanceEventPublisherPort events,
                                      Clock clock) {
@@ -51,6 +53,7 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
         this.qrValidation = qrValidation;
         this.geofenceCheck = geofenceCheck;
         this.fraudCheck = fraudCheck;
+        this.deviceRecognition = deviceRecognition;
         this.sitePolicy = sitePolicy;
         this.schedulePolicy = schedulePolicy;
         this.eventTypeConfig = eventTypeConfig;
@@ -94,6 +97,17 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
         flags.addAll(fraud.flagTypes());
         if (reason == null && fraud.blocked()) {
             reason = RejectionReason.valueOf(fraud.blockingReason());
+        }
+
+        // 2.5) Device binding (RF-28, RN-27): el dispositivo debe ser uno reconocido del colaborador.
+        //       El servidor decide la confianza desde el registro de dispositivos (no del flag del cliente);
+        //       enrola con TOFU y aplica la política del tenant (REJECT bloquea, FLAG solo marca).
+        DeviceRecognitionPort.DeviceRecognition device = deviceRecognition.resolve(tenantId, userId,
+                cmd.deviceId(), cmd.devicePlatform(), cmd.deviceModel(), cmd.deviceOsVersion());
+        if (device.action() == DeviceRecognitionPort.Action.FLAG) {
+            flags.add("UNTRUSTED_DEVICE");
+        } else if (reason == null && device.action() == DeviceRecognitionPort.Action.REJECT) {
+            reason = RejectionReason.UNTRUSTED_DEVICE;
         }
 
         // 3) Geocerca + precisión GPS (RN-13, RN-14). El umbral de precisión es por-centro (HU-10);

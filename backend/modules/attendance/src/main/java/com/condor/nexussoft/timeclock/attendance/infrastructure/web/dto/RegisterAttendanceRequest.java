@@ -25,7 +25,10 @@ public record RegisterAttendanceRequest(
         Boolean biometricVerified,
         String evidenceBucket,
         String evidenceKey,
-        String evidenceHash) {
+        String evidenceHash,
+        String devicePlatform,
+        String deviceModel,
+        String deviceOsVersion) {
 
     public RegisterAttendanceCommand toCommand() {
         return new RegisterAttendanceCommand(
@@ -35,8 +38,9 @@ public record RegisterAttendanceRequest(
                 Boolean.TRUE.equals(rootedOrJailbroken),
                 Boolean.TRUE.equals(gpsSpoofApp),
                 Boolean.TRUE.equals(gpsDisabled),
-                deviceTrusted == null || deviceTrusted,          // por defecto: dispositivo confiable
+                deviceTrusted == null || deviceTrusted,          // señal antifraude declarada por el cliente
                 Boolean.TRUE.equals(biometricVerified),
-                evidenceBucket, evidenceKey, evidenceHash);
+                evidenceBucket, evidenceKey, evidenceHash,
+                devicePlatform, deviceModel, deviceOsVersion);
     }
 }

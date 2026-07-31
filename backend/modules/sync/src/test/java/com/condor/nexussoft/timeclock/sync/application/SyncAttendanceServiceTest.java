@@ -27,7 +27,8 @@ class SyncAttendanceServiceTest {
 
     private RegisterAttendanceCommand cmd() {
         return new RegisterAttendanceCommand(UUID.randomUUID(), UUID.randomUUID(), "qr", 19.0, -99.0, 10.0,
-                "ENTRADA", null, null, "OFFLINE_SYNC", false, false, false, false, true, false, null, null, null);
+                "ENTRADA", null, null, "OFFLINE_SYNC", false, false, false, false, true, false, null, null, null,
+                "ANDROID", "Pixel 7", "14");
     }
 
     @Test

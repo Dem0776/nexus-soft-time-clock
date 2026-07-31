@@ -31,6 +31,7 @@ class RegisterAttendanceServiceTest {
     @Mock QrValidationPort qrValidation;
     @Mock GeofenceCheckPort geofenceCheck;
     @Mock FraudCheckPort fraudCheck;
+    @Mock DeviceRecognitionPort deviceRecognition;
     @Mock WorkSitePolicyPort sitePolicy;
     @Mock SchedulePolicyPort schedulePolicy;
     @Mock EventTypeConfigPort eventTypeConfig;
@@ -46,7 +47,12 @@ class RegisterAttendanceServiceTest {
     @BeforeEach
     void setUp() {
         service = new RegisterAttendanceService(attendance, idempotency, nonceGuard, qrValidation,
-                geofenceCheck, fraudCheck, sitePolicy, schedulePolicy, eventTypeConfig, events, clock);
+                geofenceCheck, fraudCheck, deviceRecognition, sitePolicy, schedulePolicy,
+                eventTypeConfig, events, clock);
+        // Por defecto el dispositivo es reconocido (device binding no interfiere). Lenient: el caso de
+        // idempotencia corta antes de llegar a la validación de dispositivo.
+        lenient().when(deviceRecognition.resolve(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new DeviceRecognitionPort.DeviceRecognition(true, DeviceRecognitionPort.Action.ALLOW));
     }
 
     /** Sin overrides de tipos de evento → todos los intermedios habilitados. */
@@ -78,7 +84,7 @@ class RegisterAttendanceServiceTest {
     private RegisterAttendanceCommand cmd(String eventType) {
         return new RegisterAttendanceCommand(UUID.randomUUID(), siteId, "qr", 19.4326, -99.1332, 10.0,
                 eventType, "dev-1", null, "ONLINE", false, false, false, false, true, false,
-                null, null, null);
+                null, null, null, "ANDROID", "Pixel 7", "14");
     }
 
     /** Deja pasar QR + antifraude + geocerca para llegar a la validación de secuencia. */
@@ -353,5 +359,31 @@ class RegisterAttendanceServiceTest {
         assertThat(result.status()).isEqualTo("ACCEPTED");
         assertThat(result.minutesLate()).isZero();
         assertThat(result.flags()).doesNotContain("LATE");
+    }
+
+    @Test
+    void dispositivoNoReconocido_conPoliticaReject_esRechazado() {
+        validationsUpToSequenceStubs();
+        when(deviceRecognition.resolve(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new DeviceRecognitionPort.DeviceRecognition(false, DeviceRecognitionPort.Action.REJECT));
+
+        AttendanceResult result = service.register(tenantId, userId, cmd());
+
+        assertThat(result.status()).isEqualTo("REJECTED");
+        assertThat(result.rejectionReason()).isEqualTo("UNTRUSTED_DEVICE");
+        verify(nonceGuard, never()).tryConsume(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void dispositivoNoReconocido_conPoliticaFlag_esAceptadoConMarca() {
+        happyPathStubs();
+        when(deviceRecognition.resolve(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new DeviceRecognitionPort.DeviceRecognition(false, DeviceRecognitionPort.Action.FLAG));
+
+        AttendanceResult result = service.register(tenantId, userId, cmd());
+
+        assertThat(result.status()).isEqualTo("ACCEPTED");
+        assertThat(result.rejectionReason()).isNull();
+        assertThat(result.flags()).contains("UNTRUSTED_DEVICE");
     }
 }
