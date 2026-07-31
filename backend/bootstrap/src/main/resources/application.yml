@@ -46,6 +46,19 @@ server:
   port: ${SERVER_PORT:8080}
   forward-headers-strategy: framework   # respeta X-Forwarded-* tras NGINX (TLS termination)
 
+# Firma del access token (RS256). En producción inyecta un par RSA persistente por env
+# (PEM PKCS#8 privada + X.509 pública); si se omite, se genera uno en memoria al arrancar
+# (solo dev: invalida los tokens en cada reinicio). Genéralo una vez, p. ej.:
+#   openssl genpkey -algorithm RSA -pkcs8 -out jwt-private.pem -pkeyopt rsa_keygen_bits:2048
+#   openssl rsa -in jwt-private.pem -pubout -out jwt-public.pem
+security:
+  jwt:
+    private-key: ${SECURITY_JWT_PRIVATE_KEY:}   # contenido PEM PKCS#8 de la llave privada
+    public-key: ${SECURITY_JWT_PUBLIC_KEY:}     # contenido PEM X.509 de la llave pública
+    key-id: ${SECURITY_JWT_KEY_ID:nexus-rsa}
+    access-ttl-seconds: ${SECURITY_JWT_ACCESS_TTL_SECONDS:900}   # vida del access token (15 min)
+    refresh-ttl-days: ${SECURITY_JWT_REFRESH_TTL_DAYS:30}        # vida del refresh token (ventana deslizante)
+
 # Observabilidad (Prometheus/Grafana, RNF-11)
 management:
   endpoints:

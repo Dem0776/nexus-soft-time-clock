@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/db/app_database.dart';
+import '../../../core/network/session_events.dart';
+import '../../../core/storage/secure_token_store.dart';
 import '../../admin_vacations/application/admin_vacations_controller.dart';
 import '../../attendance/application/attendance_controller.dart';
 import '../../attendance/data/attendance_sync_service.dart';
@@ -21,7 +23,8 @@ class AuthState {
 
   bool get isAuthenticated => status == AuthStatus.authenticated;
 
-  AuthState copyWith({AuthStatus? status, bool? loading, String? error}) => AuthState(
+  AuthState copyWith({AuthStatus? status, bool? loading, String? error}) =>
+      AuthState(
         status: status ?? this.status,
         loading: loading ?? this.loading,
         error: error,
@@ -31,7 +34,35 @@ class AuthState {
 /// Controlador de sesión (Riverpod Notifier). Orquesta login/logout y expone el estado.
 class AuthController extends Notifier<AuthState> {
   @override
-  AuthState build() => const AuthState(status: AuthStatus.unauthenticated);
+  AuthState build() {
+    // El interceptor de Dio señaliza aquí cuando el servidor invalida la sesión (refresh
+    // fallido); reaccionamos limpiando el estado local y volviendo a login.
+    ref.listen(sessionExpiredSignalProvider, (previous, next) {
+      if (next > (previous ?? 0)) sessionExpired();
+    });
+    // Arranca en `unknown` y restaura la sesión desde el almacenamiento seguro. Sin esto,
+    // cada reinicio de la app forzaría re-login aunque haya tokens válidos guardados.
+    _restoreSession();
+    return const AuthState(status: AuthStatus.unknown);
+  }
+
+  /// Restaura la sesión al abrir la app: si hay refresh token guardado se considera activa.
+  /// La validez real se confirma en la primera petición (que ya sabe refrescar el access token).
+  Future<void> _restoreSession() async {
+    String? refreshToken;
+    try {
+      refreshToken = await ref.read(secureTokenStoreProvider).refreshToken();
+    } catch (_) {
+      // Si la lectura del almacenamiento seguro falla, no dejamos la app atascada en el
+      // splash (`unknown`): se trata como sesión ausente y se va a login.
+      refreshToken = null;
+    }
+    state = AuthState(
+      status: refreshToken != null
+          ? AuthStatus.authenticated
+          : AuthStatus.unauthenticated,
+    );
+  }
 
   Future<void> login(Credentials credentials) async {
     state = state.copyWith(loading: true);
@@ -60,6 +91,16 @@ class AuthController extends Notifier<AuthState> {
     //    (la cola es global del dispositivo, sin scope de usuario).
     await ref.read(appDatabaseProvider).clearAll();
     // 4. Invalida todo el estado cacheado del usuario para que el próximo login refetchee.
+    _clearUserScopedState();
+    state = const AuthState(status: AuthStatus.unauthenticated);
+  }
+
+  /// Sesión terminada por el servidor (refresh token inválido/expirado/reuso). A diferencia
+  /// de [logout], no intenta hablar con el backend —el token ya no sirve— ni sincronizar la
+  /// cola: solo limpia el estado local y vuelve a `unauthenticated` para redirigir a login.
+  Future<void> sessionExpired() async {
+    await ref.read(secureTokenStoreProvider).clear();
+    await ref.read(appDatabaseProvider).clearAll();
     _clearUserScopedState();
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
