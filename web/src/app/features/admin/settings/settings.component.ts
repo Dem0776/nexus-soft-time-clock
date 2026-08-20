@@ -7,14 +7,18 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 
+import { AuthStore } from '../../../core/auth/auth.store';
 import { NotificationService } from '../../../core/ui/notification.service';
 import { PageHeaderComponent } from '../../../core/ui/page-header.component';
+import { CompanyPolicy } from './company-policy.models';
+import { CompanyPolicyService } from './company-policy.service';
 import { VacationPolicy, VacationTier } from './vacation-policy.models';
 import { VacationPolicyService } from './vacation-policy.service';
 
 /**
- * Configuración de vacaciones: escalera de días por año de antigüedad (tabla editable) más
- * una regla para los años posteriores al último tramo. Requiere {@code vacation:manage}.
+ * Configuración de la empresa. Reúne dos políticas independientes, cada una con su propio
+ * guardado: las de registro de asistencia (foto, biometría, dispositivo, precisión GPS, que
+ * requieren {@code company:settings}) y la escalera de vacaciones ({@code vacation:manage}).
  */
 @Component({
   selector: 'app-settings',
@@ -33,6 +37,77 @@ import { VacationPolicyService } from './vacation-policy.service';
     <app-page-header title="Configuración" subtitle="Parámetros generales de la empresa. Aplican a todo el tenant." />
     @if (error()) { <p class="error-text">{{ error() }}</p> }
     @if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+
+    @if (canEditPolicy()) {
+      <mat-card class="policy-card">
+        <mat-card-content>
+          <div class="card-head"><mat-icon>verified_user</mat-icon><h3>Políticas de registro</h3></div>
+          <p class="muted sub">
+            Valores por defecto para todos los centros. Cada centro puede sobrescribirlos desde su ficha;
+            los que queden en «Heredar» usarán lo definido aquí.
+          </p>
+          @if (policyError()) { <p class="error-text">{{ policyError() }}</p> }
+          @if (loadingPolicy()) { <mat-progress-bar mode="indeterminate" /> }
+
+          <div class="cfg-item">
+            <div class="ci-ic"><mat-icon>photo_camera</mat-icon></div>
+            <div class="ci-txt">
+              <h4>Evidencia fotográfica obligatoria</h4>
+              <p>El colaborador debe adjuntar una foto para que se acepte su registro.</p>
+            </div>
+            <mat-slide-toggle [(ngModel)]="policy.requirePhoto" color="primary" />
+          </div>
+
+          <div class="cfg-item">
+            <div class="ci-ic"><mat-icon>fingerprint</mat-icon></div>
+            <div class="ci-txt">
+              <h4>Verificación biométrica obligatoria</h4>
+              <p>Se exige huella o rostro del dispositivo antes de registrar.</p>
+            </div>
+            <mat-slide-toggle [(ngModel)]="policy.requireBiometric" color="primary" />
+          </div>
+
+          <div class="cfg-item">
+            <div class="ci-ic"><mat-icon>smartphone</mat-icon></div>
+            <div class="ci-txt">
+              <h4>Validar dispositivo del colaborador</h4>
+              <p>Solo se admiten dispositivos reconocidos previamente.</p>
+            </div>
+            <mat-slide-toggle [(ngModel)]="policy.deviceBindingEnabled" color="primary" />
+          </div>
+
+          @if (policy.deviceBindingEnabled) {
+            <div class="cfg-item">
+              <div class="ci-ic"><mat-icon>gpp_maybe</mat-icon></div>
+              <div class="ci-txt">
+                <h4>Ante un dispositivo desconocido</h4>
+                <p>Rechazar bloquea el registro; marcar lo permite y lo deja señalado para revisión.</p>
+              </div>
+              <mat-button-toggle-group [(ngModel)]="policy.deviceBindingAction">
+                <mat-button-toggle value="REJECT">Rechazar</mat-button-toggle>
+                <mat-button-toggle value="FLAG">Marcar</mat-button-toggle>
+              </mat-button-toggle-group>
+            </div>
+          }
+
+          <div class="cfg-item">
+            <div class="ci-ic"><mat-icon>my_location</mat-icon></div>
+            <div class="ci-txt">
+              <h4>Precisión GPS máxima por defecto (m)</h4>
+              <p>Un registro con precisión peor que este umbral se rechaza. Entre 5 y 500 metros.</p>
+            </div>
+            <input class="inline-num" type="number" min="5" max="500" [(ngModel)]="policy.defaultGpsAccuracyMaxM" />
+          </div>
+
+          <div class="actions">
+            <button mat-button type="button" [disabled]="savingPolicy()" (click)="loadPolicy()">Descartar</button>
+            <button mat-flat-button color="primary" [disabled]="savingPolicy()" (click)="savePolicy()">
+              <mat-icon>save</mat-icon> Guardar políticas
+            </button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
 
     <div class="cfg-grid">
       <mat-card>
@@ -136,6 +211,7 @@ import { VacationPolicyService } from './vacation-policy.service';
       .beyond-title { font-size: var(--font-small); font-weight: 600; margin-bottom: var(--sp-2); }
       .inc { margin-top: var(--sp-3); font-size: var(--font-body); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .inline-num { width: 64px; }
+      .policy-card { margin-bottom: var(--sp-4); }
       .cfg-item { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-4) 0; border-top: 1px solid var(--border); }
       .ci-ic { width: 40px; height: 40px; border-radius: 11px; background: var(--brand-soft); border: 1px solid var(--brand-border); color: var(--brand); display: grid; place-items: center; flex: none; }
       .ci-txt { flex: 1; }
@@ -152,6 +228,8 @@ import { VacationPolicyService } from './vacation-policy.service';
 })
 export class SettingsComponent {
   private readonly service = inject(VacationPolicyService);
+  private readonly policyService = inject(CompanyPolicyService);
+  private readonly auth = inject(AuthStore);
   private readonly notify = inject(NotificationService);
 
   protected model: VacationPolicy = {
@@ -166,8 +244,57 @@ export class SettingsComponent {
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
 
+  /** Políticas de registro. Se cargan y guardan aparte de las de vacaciones: distinto permiso. */
+  protected policy: CompanyPolicy = {
+    defaultGpsAccuracyMaxM: 50,
+    requirePhoto: false,
+    requireBiometric: false,
+    deviceBindingEnabled: true,
+    deviceBindingAction: 'REJECT',
+  };
+  protected readonly loadingPolicy = signal(false);
+  protected readonly savingPolicy = signal(false);
+  protected readonly policyError = signal<string | null>(null);
+
   constructor() {
     this.load();
+    if (this.canEditPolicy()) {
+      this.loadPolicy();
+    }
+  }
+
+  protected canEditPolicy(): boolean {
+    return this.auth.hasPermission('company:settings');
+  }
+
+  protected loadPolicy(): void {
+    this.loadingPolicy.set(true);
+    this.policyError.set(null);
+    this.policyService.get().subscribe({
+      next: (p) => {
+        this.policy = { ...p };
+        this.loadingPolicy.set(false);
+      },
+      error: () => {
+        this.policyError.set('No se pudieron cargar las políticas de registro.');
+        this.loadingPolicy.set(false);
+      },
+    });
+  }
+
+  protected savePolicy(): void {
+    this.savingPolicy.set(true);
+    this.policyService.update({ ...this.policy }).subscribe({
+      next: (p) => {
+        this.policy = { ...p };
+        this.savingPolicy.set(false);
+        this.notify.success('Políticas de registro guardadas.');
+      },
+      error: () => {
+        this.savingPolicy.set(false);
+        this.notify.error('No se pudieron guardar las políticas. Revisa la precisión GPS (entre 5 y 500 m).');
+      },
+    });
   }
 
   protected addTier(): void {

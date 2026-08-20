@@ -1,5 +1,12 @@
 export type WorkSiteStatus = 'ACTIVE' | 'INACTIVE';
 
+/**
+ * Overrides de política del centro. `null` significa **heredar** la política de la empresa
+ * (`company_settings`); `true`/`false` la sobrescriben para este centro. No confundir `null`
+ * con `false`: enviar `false` desactiva la exigencia aunque la empresa la tenga activada.
+ */
+export type PolicyOverride = boolean | null;
+
 export interface WorkSite {
   id: string;
   code: string;
@@ -9,8 +16,8 @@ export interface WorkSite {
   longitude: number;
   timezone?: string;
   gpsAccuracyMaxM?: number;
-  requirePhoto?: boolean;
-  requireBiometric?: boolean;
+  requirePhoto?: PolicyOverride;
+  requireBiometric?: PolicyOverride;
   status: WorkSiteStatus;
 }
 
@@ -22,8 +29,8 @@ export interface CreateWorkSite {
   longitude: number;
   timezone?: string;
   gpsAccuracyMaxM?: number;
-  requirePhoto?: boolean;
-  requireBiometric?: boolean;
+  requirePhoto?: PolicyOverride;
+  requireBiometric?: PolicyOverride;
 }
 
 export interface UpdateWorkSite {
@@ -33,6 +40,6 @@ export interface UpdateWorkSite {
   longitude: number;
   timezone?: string;
   gpsAccuracyMaxM?: number;
-  requirePhoto?: boolean;
-  requireBiometric?: boolean;
+  requirePhoto?: PolicyOverride;
+  requireBiometric?: PolicyOverride;
 }
