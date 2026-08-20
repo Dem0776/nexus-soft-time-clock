@@ -38,6 +38,10 @@ Motivos de rechazo: `INVALID_QR`, `OUT_OF_GEOFENCE`, `LOW_GPS_ACCURACY`, `GPS_UN
 
 > El compile-check atrapó un bug real (uso de `Jwt` sin la dependencia oauth2 en attendance) — se resolvió leyendo tenant/usuario del contexto de seguridad sin acoplar a esa librería.
 
+## Documentos
+
+- [01 — Evidencia fotográfica (RF-18 / HU-13)](01-evidencia-fotografica.md): política por centro con herencia de empresa, subida prefirmada a MinIO y verificación de la evidencia en el servidor.
+
 ## Criterios de aceptación
 - [x] Registro por QR + GPS + geocerca + validaciones + antifraude + hora de servidor.
 - [x] Idempotencia (offline-ready) y anti-replay por nonce.
