@@ -67,6 +67,12 @@ LOG_LEVEL_APP="${LOG_LEVEL_APP:-INFO}"
 APP_URL="${APP_URL:-http://85.239.240.43:8088}"
 VERIFY_EMAIL="${VERIFY_EMAIL:-admin@demo.com}"
 VERIFY_PASSWORD="${VERIFY_PASSWORD:-Admin123!}"
+MINIO_USER="${MINIO_USER:-minioadmin}"
+STORAGE_MINIO_BUCKET="${STORAGE_MINIO_BUCKET:-evidence}"
+MINIO_KMS_SECRET_KEY="${MINIO_KMS_SECRET_KEY:-}"
+# Origen público del stack: con él se firman las URLs de subida de evidencias. Por defecto,
+# el mismo que APP_URL, que es justo por donde entran el portal y la app.
+PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-$APP_URL}"
 
 # --- Validar secretos obligatorios -----------------------------------
 missing=()
@@ -74,6 +80,7 @@ missing=()
 [[ -z "${GH_PAT:-}" ]]              && missing+=("GH_PAT")
 [[ -z "${DB_PASSWORD:-}" ]]         && missing+=("DB_PASSWORD")
 [[ -z "${SECURITY_QR_SECRET:-}" ]] && missing+=("SECURITY_QR_SECRET")
+[[ -z "${MINIO_PASSWORD:-}" ]]      && missing+=("MINIO_PASSWORD")
 if (( ${#missing[@]} )); then
   echo "ERROR: faltan variables obligatorias: ${missing[*]}" >&2
   echo "       Defínelas en $SCRIPT_DIR/.env (ver .env.example) o expórtalas." >&2
@@ -120,6 +127,11 @@ PAYLOAD=$(cat <<JSON
     {"name":"DB_PASSWORD","value":"$(json_escape "$DB_PASSWORD")"},
     {"name":"SECURITY_QR_SECRET","value":"$(json_escape "$SECURITY_QR_SECRET")"},
     {"name":"HTTP_PORT","value":"$(json_escape "$HTTP_PORT")"},
+    {"name":"MINIO_USER","value":"$(json_escape "$MINIO_USER")"},
+    {"name":"MINIO_PASSWORD","value":"$(json_escape "$MINIO_PASSWORD")"},
+    {"name":"MINIO_KMS_SECRET_KEY","value":"$(json_escape "$MINIO_KMS_SECRET_KEY")"},
+    {"name":"PUBLIC_BASE_URL","value":"$(json_escape "$PUBLIC_BASE_URL")"},
+    {"name":"STORAGE_MINIO_BUCKET","value":"$(json_escape "$STORAGE_MINIO_BUCKET")"},
     {"name":"LOG_LEVEL_APP","value":"$(json_escape "$LOG_LEVEL_APP")"}
   ]
 }
