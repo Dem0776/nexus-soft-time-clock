@@ -1,7 +1,7 @@
 name: nexus_time_clock
 description: "Nexus Soft Time Clock — App de empleados (offline-first)."
 publish_to: 'none'
-version: 1.0.1+2
+version: 1.0.3+4
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -37,6 +37,11 @@ dependencies:
   geolocator: ^13.0.1
   geocoding: ^3.0.0
   mobile_scanner: ^5.2.3
+  # Evidencia fotográfica (RF-18). image_picker delega en la cámara del sistema: no requiere
+  # gestionar el ciclo de vida de la cámara ni permisos adicionales a los ya declarados.
+  image_picker: ^1.1.2
+  flutter_image_compress: ^2.3.0
+  crypto: ^3.0.5
 
   # Firebase (mensajería, crashlytics, analytics)
   firebase_core: ^3.6.0
@@ -55,6 +60,8 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^4.0.0
   build_runner: ^2.4.13
+  # Usado por el test de migración de esquema para preparar una base con el esquema anterior.
+  sqlite3: ^2.4.0
   freezed: ^2.5.7
   json_serializable: ^6.8.0
   riverpod_generator: ^2.4.3

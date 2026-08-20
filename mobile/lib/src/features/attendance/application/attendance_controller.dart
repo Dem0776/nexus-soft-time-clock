@@ -35,11 +35,15 @@ class AttendanceController extends Notifier<AttendanceUiState> {
     return const AttendanceUiState();
   }
 
+  /// [evidencePath] y [evidenceSha256] son la foto ya capturada y comprimida (RF-18). No se sube
+  /// aquí: viaja con la cola, para que una marcación sin conexión no dependa de la red.
   Future<void> register({
     required String eventType,
     required String workSiteId,
     required String qrToken,
     bool biometricVerified = false,
+    String? evidencePath,
+    String? evidenceSha256,
   }) async {
     state = state.copyWith(busy: true, message: null);
 
@@ -73,7 +77,12 @@ class AttendanceController extends Notifier<AttendanceUiState> {
     );
 
     final db = ref.read(appDatabaseProvider);
-    await db.enqueue(op.operationUuid, jsonEncode(op.toJson()));
+    await db.enqueue(
+      op.operationUuid,
+      jsonEncode(op.toJson()),
+      evidencePath: evidencePath,
+      evidenceSha256: evidenceSha256,
+    );
     await ref.read(attendanceSyncServiceProvider).syncPending();
     await _refreshCount();
 
