@@ -4,8 +4,11 @@ import com.condor.nexussoft.timeclock.shared.domain.AuthorizationException;
 import com.condor.nexussoft.timeclock.shared.domain.DomainException;
 import com.condor.nexussoft.timeclock.shared.domain.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -20,6 +23,8 @@ import java.util.stream.Collectors;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ProblemDetail handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
@@ -66,8 +71,27 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    /**
+     * Permiso insuficiente en un {@code @PreAuthorize}. Sin este manejador cae en el catch-all y
+     * se devuelve un 500 engañoso: el cliente no puede distinguir "no tienes permiso" de un fallo
+     * del servidor, y el log se llena de errores que en realidad son denegaciones normales.
+     */
+    @ExceptionHandler(AuthorizationDeniedException.class)
+    public ProblemDetail handleAccessDenied(AuthorizationDeniedException ex, HttpServletRequest request) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN,
+                "No tienes permiso para realizar esta acción.");
+        pd.setTitle("Acción no autorizada");
+        pd.setProperty("code", "ACCESS_DENIED");
+        pd.setProperty("timestamp", Instant.now());
+        pd.setProperty("path", request.getRequestURI());
+        return pd;
+    }
+
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleUnexpected(Exception ex, HttpServletRequest request) {
+        // La respuesta no revela el detalle al cliente, así que sin esta traza el fallo se pierde
+        // por completo y queda un 500 opaco imposible de diagnosticar.
+        log.error("Error no controlado en {} {}", request.getMethod(), request.getRequestURI(), ex);
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
                 "Error interno. Contacte al administrador si persiste.");
         pd.setTitle("Error interno");
