@@ -37,6 +37,7 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
     private final WorkSitePolicyPort sitePolicy;
     private final SchedulePolicyPort schedulePolicy;
     private final EventTypeConfigPort eventTypeConfig;
+    private final EvidenceStoragePort evidenceStorage;
     private final AttendanceEventPublisherPort events;
     private final Clock clock;
 
@@ -45,7 +46,8 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
                                      GeofenceCheckPort geofenceCheck, FraudCheckPort fraudCheck,
                                      DeviceRecognitionPort deviceRecognition,
                                      WorkSitePolicyPort sitePolicy, SchedulePolicyPort schedulePolicy,
-                                     EventTypeConfigPort eventTypeConfig, AttendanceEventPublisherPort events,
+                                     EventTypeConfigPort eventTypeConfig, EvidenceStoragePort evidenceStorage,
+                                     AttendanceEventPublisherPort events,
                                      Clock clock) {
         this.attendance = attendance;
         this.idempotency = idempotency;
@@ -57,6 +59,7 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
         this.sitePolicy = sitePolicy;
         this.schedulePolicy = schedulePolicy;
         this.eventTypeConfig = eventTypeConfig;
+        this.evidenceStorage = evidenceStorage;
         this.events = events;
         this.clock = clock;
     }
@@ -139,8 +142,26 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
                     .orElse(null);
         }
 
-        // 3.6) Políticas obligatorias del centro: evidencia fotográfica (HU-13 CA1) y biometría (HU-14 CA1).
-        if (reason == null && policy.requirePhoto() && cmd.evidenceKey() == null) {
+        // 3.6) Evidencia fotográfica (HU-13). La clave la emitió el servidor al prefirmar la subida;
+        //       aquí se comprueba contra el almacenamiento que el objeto EXISTE, cuelga del prefijo
+        //       de este tenant/usuario/centro y es reciente. Sin esta verificación bastaría con
+        //       enviar una clave inventada para dar por cumplida la exigencia de foto.
+        Evidence evidence = null;
+        if (cmd.evidenceKey() != null) {
+            EvidenceStoragePort.Outcome outcome = evidenceStorage.validate(
+                    tenantId, userId, cmd.workSiteId(), cmd.evidenceKey(), now);
+            if (outcome == EvidenceStoragePort.Outcome.VALID) {
+                // El bucket lo fija el servidor: el que declare el cliente se descarta.
+                evidence = new Evidence(evidenceStorage.bucket(), cmd.evidenceKey(), cmd.evidenceHash());
+            } else {
+                // Con foto opcional el registro sigue adelante sin evidencia (no se penaliza al
+                // colaborador por un fallo de subida); la bandera queda para revisión del supervisor.
+                flags.add("EVIDENCE_REJECTED_" + outcome.name());
+            }
+        }
+
+        // Políticas obligatorias del centro: foto (HU-13 CA1) y biometría (HU-14 CA1).
+        if (reason == null && policy.requirePhoto() && evidence == null) {
             reason = RejectionReason.PHOTO_REQUIRED;
         }
         if (reason == null && policy.requireBiometric() && !cmd.biometricVerified()) {
@@ -167,8 +188,10 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
 
         AttendanceStatus status = reason == null ? AttendanceStatus.ACCEPTED : AttendanceStatus.REJECTED;
 
+        // La evidencia verificada se persiste aunque el registro se rechace por otro motivo: es la
+        // prueba de un intento real (útil para incidencias) y hace exacta la regla de huérfanos.
         AttendanceRecord record = buildRecord(recordId, tenantId, userId, cmd, now, status, reason,
-                qrOk ? qr.nonce() : null, distance, flags, lateMinutes);
+                qrOk ? qr.nonce() : null, distance, flags, lateMinutes, evidence);
         attendance.save(record);
 
         AttendanceResult result = new AttendanceResult(recordId, status.name(),
@@ -190,11 +213,10 @@ public class RegisterAttendanceService implements RegisterAttendanceUseCase {
 
     private AttendanceRecord buildRecord(UUID recordId, UUID tenantId, UUID userId, RegisterAttendanceCommand cmd,
                                          Instant now, AttendanceStatus status, RejectionReason reason,
-                                         String nonce, Double distance, List<String> flags, int lateMinutes) {
+                                         String nonce, Double distance, List<String> flags, int lateMinutes,
+                                         Evidence evidence) {
         Instant deviceTime = cmd.deviceTimeEpochMs() == null ? null : Instant.ofEpochMilli(cmd.deviceTimeEpochMs());
         Integer skew = deviceTime == null ? null : (int) (now.getEpochSecond() - deviceTime.getEpochSecond());
-        Evidence evidence = cmd.evidenceKey() == null ? null
-                : new Evidence(cmd.evidenceBucket(), cmd.evidenceKey(), cmd.evidenceHash());
         GpsFix gps = new GpsFix(cmd.latitude(), cmd.longitude(), cmd.accuracyM());
 
         return new AttendanceRecord(recordId, tenantId, now, userId, cmd.workSiteId(),
