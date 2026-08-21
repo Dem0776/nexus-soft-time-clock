@@ -21,6 +21,9 @@ class AttendanceOperation {
     this.gpsDisabled = false,
     this.deviceTrusted = true,
     this.biometricVerified = false,
+    this.evidenceBucket,
+    this.evidenceKey,
+    this.evidenceHash,
   });
 
   final String operationUuid;
@@ -43,6 +46,12 @@ class AttendanceOperation {
   final bool deviceTrusted;
   final bool biometricVerified;
 
+  /// Referencia de la evidencia ya subida (RF-18). La clave la emite el servidor al prefirmar la
+  /// subida; se envía para que la asocie al registro tras verificar que el objeto existe.
+  final String? evidenceBucket;
+  final String? evidenceKey;
+  final String? evidenceHash;
+
   Map<String, dynamic> toJson() => {
         'operationUuid': operationUuid,
         'workSiteId': workSiteId,
@@ -63,5 +72,8 @@ class AttendanceOperation {
         'gpsDisabled': gpsDisabled,
         'deviceTrusted': deviceTrusted,
         'biometricVerified': biometricVerified,
+        if (evidenceBucket != null) 'evidenceBucket': evidenceBucket,
+        if (evidenceKey != null) 'evidenceKey': evidenceKey,
+        if (evidenceHash != null) 'evidenceHash': evidenceHash,
       };
 }

@@ -7,7 +7,7 @@
 | JDK | **21 LTS** | Backend (Spring Boot 3.3) |
 | Maven | 3.9+ | Build backend |
 | Node.js | 22+ | Portal Angular |
-| Flutter | última estable | App móvil |
+| Flutter | 3.44.8 (fijada en `ci.yml`) | App móvil |
 | Docker + Compose | reciente | Infra local (PostGIS, Redis, MinIO…) |
 
 ## Arranque rápido (todo el stack)
@@ -60,10 +60,16 @@ npm test            # Karma/Jasmine
 cd mobile
 flutter pub get
 flutter gen-l10n
-dart run build_runner build --delete-conflicting-outputs   # Drift/Freezed/Riverpod
+dart run build_runner build   # Drift (único codegen del módulo)
 flutter run
 flutter test
 ```
+
+La versión de Flutter está **fijada** en `.github/workflows/ci.yml`, no se sigue `stable` a
+ciegas: el analyzer que usa `build_runner` deja de entender la sintaxis de los SDK más
+nuevos y el codegen se cuelga en lugar de fallar. `mobile/pubspec.lock` está versionado por
+el mismo motivo. Para subir de versión: cambiar el pin, regenerar el lock y comprobar que
+`build_runner` y `flutter test` pasan antes de mergear.
 
 ## Estructura del repositorio
 Ver [README](../../README.md#estructura-del-repositorio-destino). Convenciones y arquitectura en [`docs/iteracion-02-arquitectura`](../iteracion-02-arquitectura/).

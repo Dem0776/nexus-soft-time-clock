@@ -45,6 +45,28 @@ services:
       timeout: 5s
       retries: 5
 
+  # Evidencias fotográficas (RF-18, ADR-008). Sin `ports:` a propósito: solo se llega desde la
+  # red interna y a través de NGINX (/evidence/), nunca directo desde internet.
+  # MINIO_KMS_SECRET_KEY habilita el cifrado en reposo SSE-S3 (RNF-08); sin ella el bucket
+  # queda sin cifrar y el backend lo avisa por log al arrancar.
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:?falta MINIO_PASSWORD}
+      MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY:-}
+      MINIO_BROWSER: "off"
+    volumes:
+      - miniodata:/data
+    networks: [nexus]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
   backend:
     # --- A) Build desde el repo (método Repository de Portainel) ---
     build:
@@ -57,6 +79,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
@@ -80,6 +104,14 @@ services:
       SECURITY_JWT_PRIVATE_KEY: ${SECURITY_JWT_PRIVATE_KEY:-}
       SECURITY_JWT_PUBLIC_KEY: ${SECURITY_JWT_PUBLIC_KEY:-}
       SECURITY_JWT_KEY_ID: ${SECURITY_JWT_KEY_ID:-nexus-rsa}
+      # Evidencias (RF-18). El endpoint interno sirve para verificar los objetos; el PÚBLICO es
+      # el que el cliente usará, y con el que hay que firmar: SigV4 firma el Host, así que si
+      # aquí no va el origen real (el de NGINX), toda subida fallará con SignatureDoesNotMatch.
+      STORAGE_MINIO_ENDPOINT: http://minio:9000
+      STORAGE_MINIO_PUBLIC_ENDPOINT: ${PUBLIC_BASE_URL:?falta PUBLIC_BASE_URL}
+      STORAGE_MINIO_BUCKET: ${STORAGE_MINIO_BUCKET:-evidence}
+      MINIO_USER: ${MINIO_USER:-minioadmin}
+      MINIO_PASSWORD: ${MINIO_PASSWORD:?falta MINIO_PASSWORD}
       LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
     networks: [nexus]
 
@@ -103,6 +135,7 @@ services:
     depends_on:
       - backend
       - web
+      - minio
     ports:
       - "${HTTP_PORT:-8081}:80"      # Único punto de entrada. Detrás poné TLS.
     networks: [nexus]
@@ -114,3 +147,4 @@ networks:
 volumes:
   pgdata:
   redisdata:
+  miniodata:

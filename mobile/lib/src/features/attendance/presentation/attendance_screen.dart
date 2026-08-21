@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/services/biometric_service.dart';
 import '../application/attendance_controller.dart';
+import '../data/evidence_capture_service.dart';
 import '../data/event_type_service.dart';
+import '../data/site_policy_service.dart';
 import '../domain/qr_token.dart';
 import 'qr_scanner_screen.dart';
 
@@ -18,6 +21,8 @@ class AttendanceScreen extends ConsumerStatefulWidget {
 }
 
 class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
+  static const _uuid = Uuid();
+
   Future<void> _register(String eventType) async {
     // 1) Abrir la cámara y esperar el QR (o null si el usuario cancela).
     final raw = await Navigator.of(context).push<String>(
@@ -36,7 +41,30 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       return;
     }
 
-    // 3) Autenticación biométrica local (HU-14). Es oportunista: el backend rechaza si el
+    // 3) Política del centro (HU-13 CA1): decide si la foto es obligatoria. Se consulta al
+    //    backend y se cachea, para poder exigirla también sin conexión.
+    final policy = await ref.read(sitePolicyServiceProvider).forSite(workSiteId);
+    if (!mounted) {
+      return;
+    }
+
+    // 4) Evidencia fotográfica. Si el centro la exige, sin foto no hay registro: enviarlo sería
+    //    gastarle al colaborador un intento que el servidor rechazará con PHOTO_REQUIRED.
+    CapturedEvidence? evidence;
+    if (policy.requirePhoto) {
+      evidence = await ref.read(evidenceCaptureServiceProvider).capture(_uuid.v4());
+      if (!mounted) {
+        return;
+      }
+      if (evidence == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Este centro exige una foto para registrar tu asistencia.')),
+        );
+        return;
+      }
+    }
+
+    // 5) Autenticación biométrica local (HU-14). Es oportunista: el backend rechaza si el
     //    centro la exige y no fue exitosa. Si el dispositivo no la soporta, devuelve false.
     final biometricOk = await ref
         .read(biometricServiceProvider)
@@ -45,12 +73,14 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       return;
     }
 
-    // 4) Registrar (GPS → cola local → sincronización) con el token crudo.
+    // 6) Registrar (GPS → cola local → sincronización) con el token crudo.
     await ref.read(attendanceControllerProvider.notifier).register(
           eventType: eventType,
           workSiteId: workSiteId,
           qrToken: raw,
           biometricVerified: biometricOk,
+          evidencePath: evidence?.file.path,
+          evidenceSha256: evidence?.sha256,
         );
     final message = ref.read(attendanceControllerProvider).message;
     if (mounted && message != null) {

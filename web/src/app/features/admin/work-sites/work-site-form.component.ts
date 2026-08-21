@@ -3,12 +3,12 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 
 import { BreadcrumbComponent } from '../../../core/ui/breadcrumb.component';
 import { ConfirmDialogComponent } from '../../../core/ui/confirm-dialog.component';
@@ -16,7 +16,7 @@ import { MapInlineComponent } from '../../../core/ui/map-inline.component';
 import { NotificationService } from '../../../core/ui/notification.service';
 import { PageHeaderComponent } from '../../../core/ui/page-header.component';
 import { StatusChipComponent } from '../../../core/ui/status-chip.component';
-import { WorkSite } from './work-site.models';
+import { PolicyOverride, WorkSite } from './work-site.models';
 import { WorkSiteService } from './work-site.service';
 
 /** Alta / edición de centro de trabajo en página completa (con breadcrumb). */
@@ -27,12 +27,12 @@ import { WorkSiteService } from './work-site.service';
     ReactiveFormsModule,
     RouterLink,
     MatButtonModule,
+    MatButtonToggleModule,
     MatDialogModule,
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
     MatProgressBarModule,
-    MatSlideToggleModule,
     BreadcrumbComponent,
     MapInlineComponent,
     PageHeaderComponent,
@@ -115,20 +115,32 @@ import { WorkSiteService } from './work-site.service';
               <mat-hint>Radio máximo de validación de ubicación (opcional).</mat-hint>
             </mat-form-field>
           </div>
-          <div class="icon-row">
-            <mat-slide-toggle formControlName="requirePhoto" />
+          <div class="policy-row">
             <div>
               <p class="row-title">Foto al registrar</p>
               <p class="row-desc">Los usuarios deben tomar foto al registrar asistencia.</p>
             </div>
+            <mat-button-toggle-group formControlName="requirePhoto" aria-label="Política de foto">
+              <mat-button-toggle [value]="null">Heredar</mat-button-toggle>
+              <mat-button-toggle [value]="true">Sí</mat-button-toggle>
+              <mat-button-toggle [value]="false">No</mat-button-toggle>
+            </mat-button-toggle-group>
           </div>
-          <div class="icon-row">
-            <mat-slide-toggle formControlName="requireBiometric" />
+          <div class="policy-row">
             <div>
               <p class="row-title">Verificación biométrica</p>
               <p class="row-desc">Se requiere validación biométrica al registrar.</p>
             </div>
+            <mat-button-toggle-group formControlName="requireBiometric" aria-label="Política de biometría">
+              <mat-button-toggle [value]="null">Heredar</mat-button-toggle>
+              <mat-button-toggle [value]="true">Sí</mat-button-toggle>
+              <mat-button-toggle [value]="false">No</mat-button-toggle>
+            </mat-button-toggle-group>
           </div>
+          <p class="row-desc policy-hint">
+            <mat-icon>info</mat-icon>
+            <span>«Heredar» aplica lo definido en Configuración → Políticas de registro.</span>
+          </p>
         </form>
 
         <div class="form-callout">
@@ -198,6 +210,30 @@ import { WorkSiteService } from './work-site.service';
       </div>
     </div>
   `,
+  styles: [
+    `
+      .policy-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--sp-4);
+        flex-wrap: wrap;
+        padding: var(--sp-3) 0;
+      }
+      .policy-hint {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0 0 var(--sp-3);
+        color: var(--text-muted);
+      }
+      .policy-hint mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+      }
+    `,
+  ],
 })
 export class WorkSiteFormComponent {
   private readonly fb = inject(FormBuilder);
@@ -223,8 +259,10 @@ export class WorkSiteFormComponent {
     longitude: this.fb.control<number | null>(null, [Validators.required]),
     timezone: this.fb.nonNullable.control(''),
     gpsAccuracyMaxM: this.fb.control<number | null>(null),
-    requirePhoto: this.fb.nonNullable.control(false),
-    requireBiometric: this.fb.nonNullable.control(false),
+    // Tri-estado: null = heredar de company_settings. Deliberadamente NO son `nonNullable`:
+    // guardar `false` donde el usuario quiso "heredar" anularía la política de la empresa.
+    requirePhoto: this.fb.control<PolicyOverride>(null),
+    requireBiometric: this.fb.control<PolicyOverride>(null),
   });
 
   private readonly formStatus = toSignal(this.form.statusChanges, { initialValue: this.form.status });
@@ -244,8 +282,8 @@ export class WorkSiteFormComponent {
             longitude: s.longitude,
             timezone: s.timezone ?? '',
             gpsAccuracyMaxM: s.gpsAccuracyMaxM ?? null,
-            requirePhoto: s.requirePhoto ?? false,
-            requireBiometric: s.requireBiometric ?? false,
+            requirePhoto: s.requirePhoto ?? null,
+            requireBiometric: s.requireBiometric ?? null,
           });
           this.form.controls.code.disable();
           this.loading.set(false);

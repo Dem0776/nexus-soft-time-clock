@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTableModule } from '@angular/material/table';
@@ -10,6 +11,7 @@ import * as XLSX from 'xlsx';
 
 import { EmptyStateComponent } from '../../core/ui/empty-state.component';
 import { PageHeaderComponent } from '../../core/ui/page-header.component';
+import { AttendanceDetailDialogComponent } from './attendance-detail-dialog.component';
 import { AttendanceEvent, EVENT_LABELS, EVENT_OPTIONS, REJECTION_LABELS, STATUS_LABELS } from './attendance-events.models';
 import { AttendanceEventsService } from './attendance-events.service';
 
@@ -24,8 +26,8 @@ type Period = 'week' | 'fortnight' | 'month' | 'range';
   selector: 'app-attendance-events',
   standalone: true,
   imports: [
-    MatCardModule, MatTableModule, MatButtonModule, MatButtonToggleModule, MatIconModule,
-    MatProgressBarModule, MatTooltipModule, PageHeaderComponent, EmptyStateComponent,
+    MatCardModule, MatTableModule, MatButtonModule, MatButtonToggleModule, MatDialogModule,
+    MatIconModule, MatProgressBarModule, MatTooltipModule, PageHeaderComponent, EmptyStateComponent,
   ],
   template: `
     <app-page-header title="Entradas y salidas" subtitle="Registros individuales de asistencia: a qué hora ficha cada persona">
@@ -103,10 +105,23 @@ type Period = 'week' | 'fortnight' | 'month' | 'range';
                 <select class="cf" (change)="setF('status', $event)"><option value="">Todos</option><option value="ACCEPTED">Aceptado</option><option value="REJECTED">Rechazado</option><option value="PENDING_REVIEW">En revisión</option></select>
               </th>
             </ng-container>
+            <ng-container matColumnDef="evidence">
+              <th mat-header-cell *matHeaderCellDef class="ecell">Foto</th>
+              <td mat-cell *matCellDef="let e" class="ecell">
+                @if (e.hasEvidence) {
+                  <mat-icon class="has-photo" matTooltip="Ver evidencia fotográfica">photo_camera</mat-icon>
+                } @else {
+                  <span class="muted">—</span>
+                }
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="evidence-f">
+              <th mat-header-cell *matHeaderCellDef class="fcell"></th>
+            </ng-container>
 
             <tr mat-header-row *matHeaderRowDef="columns"></tr>
             <tr mat-header-row *matHeaderRowDef="filterColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: columns"></tr>
+            <tr mat-row *matRowDef="let row; columns: columns" class="clickable" (click)="openDetail(row)"></tr>
           </table>
         </div>
 
@@ -133,6 +148,10 @@ type Period = 'week' | 'fortnight' | 'month' | 'range';
       .chip.ok { background: var(--success-bg); color: var(--success); }
       .chip.bad { background: var(--danger-bg); color: var(--danger); }
       .fcell { padding-top: 6px !important; padding-bottom: 6px !important; background: var(--surface-2); }
+      .ecell { width: 64px; text-align: center; }
+      .has-photo { color: var(--brand); vertical-align: middle; }
+      tr.clickable { cursor: pointer; }
+      tr.clickable:hover { background: var(--surface-2); }
       .cf { width: 100%; min-width: 110px; padding: 7px 9px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: var(--font-small); }
       .cf:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
       select.cf { cursor: pointer; }
@@ -141,9 +160,10 @@ type Period = 'week' | 'fortnight' | 'month' | 'range';
 })
 export class AttendanceEventsComponent {
   private readonly service = inject(AttendanceEventsService);
+  private readonly dialog = inject(MatDialog);
 
-  protected readonly columns = ['date', 'user', 'event', 'site', 'status'];
-  protected readonly filterColumns = ['date-f', 'user-f', 'event-f', 'site-f', 'status-f'];
+  protected readonly columns = ['date', 'user', 'event', 'site', 'status', 'evidence'];
+  protected readonly filterColumns = ['date-f', 'user-f', 'event-f', 'site-f', 'status-f', 'evidence-f'];
   protected readonly eventOptions = EVENT_OPTIONS;
 
   protected readonly events = signal<AttendanceEvent[]>([]);
@@ -208,6 +228,13 @@ export class AttendanceEventsComponent {
     });
   }
 
+  /** Abre el detalle de la marcación, con su evidencia fotográfica si la tiene (HU-13). */
+  protected openDetail(event: AttendanceEvent): void {
+    this.dialog.open(AttendanceDetailDialogComponent, { data: event, autoFocus: false });
+  }
+
+  // La evidencia no se incluye en la exportación: su URL caduca a los pocos minutos y dentro de
+  // un Excel sería un enlace roto que aparenta ser la foto.
   protected exportExcel(): void {
     const header = ['Fecha y hora', 'Colaborador', 'Código', 'Evento', 'Centro de trabajo', 'Estado', 'Motivo de rechazo'];
     const rows = this.filtered().map((e) => [

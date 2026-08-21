@@ -35,6 +35,7 @@ class RegisterAttendanceServiceTest {
     @Mock WorkSitePolicyPort sitePolicy;
     @Mock SchedulePolicyPort schedulePolicy;
     @Mock EventTypeConfigPort eventTypeConfig;
+    @Mock EvidenceStoragePort evidenceStorage;
     @Mock AttendanceEventPublisherPort events;
 
     RegisterAttendanceService service;
@@ -48,7 +49,7 @@ class RegisterAttendanceServiceTest {
     void setUp() {
         service = new RegisterAttendanceService(attendance, idempotency, nonceGuard, qrValidation,
                 geofenceCheck, fraudCheck, deviceRecognition, sitePolicy, schedulePolicy,
-                eventTypeConfig, events, clock);
+                eventTypeConfig, evidenceStorage, events, clock);
         // Por defecto el dispositivo es reconocido (device binding no interfiere). Lenient: el caso de
         // idempotencia corta antes de llegar a la validación de dispositivo.
         lenient().when(deviceRecognition.resolve(any(), any(), any(), any(), any(), any()))
@@ -85,6 +86,35 @@ class RegisterAttendanceServiceTest {
         return new RegisterAttendanceCommand(UUID.randomUUID(), siteId, "qr", 19.4326, -99.1332, 10.0,
                 eventType, "dev-1", null, "ONLINE", false, false, false, false, true, false,
                 null, null, null, "ANDROID", "Pixel 7", "14");
+    }
+
+    /** Clave con la forma que emite el servidor: t/{tenant}/s/{site}/d/{fecha}/u/{user}/{uuid}.jpg */
+    private static final String VALID_KEY = "t/tenant/s/site/d/2026/07/21/u/user/foto.jpg";
+
+    /**
+     * Comando con evidencia. El bucket declarado es deliberadamente falso: el servidor debe
+     * ignorarlo y persistir el suyo.
+     */
+    private RegisterAttendanceCommand cmdWithEvidence(String evidenceKey) {
+        return new RegisterAttendanceCommand(UUID.randomUUID(), siteId, "qr", 19.4326, -99.1332, 10.0,
+                "ENTRADA", "dev-1", null, "ONLINE", false, false, false, false, true, false,
+                "bucket-del-cliente", evidenceKey, "hash", "ANDROID", "Pixel 7", "14");
+    }
+
+    private void evidenceStub(EvidenceStoragePort.Outcome outcome) {
+        when(evidenceStorage.validate(eq(tenantId), eq(userId), eq(siteId), anyString(), any()))
+                .thenReturn(outcome);
+        if (outcome == EvidenceStoragePort.Outcome.VALID) {
+            when(evidenceStorage.bucket()).thenReturn("evidence");
+        }
+    }
+
+    /** Registro efectivamente persistido, para comprobar qué evidencia quedó asociada. */
+    private com.condor.nexussoft.timeclock.attendance.domain.AttendanceRecord savedRecord() {
+        var captor = org.mockito.ArgumentCaptor
+                .forClass(com.condor.nexussoft.timeclock.attendance.domain.AttendanceRecord.class);
+        verify(attendance).save(captor.capture());
+        return captor.getValue();
     }
 
     /** Deja pasar QR + antifraude + geocerca para llegar a la validación de secuencia. */
@@ -269,6 +299,106 @@ class RegisterAttendanceServiceTest {
         assertThat(result.status()).isEqualTo("REJECTED");
         assertThat(result.rejectionReason()).isEqualTo("PHOTO_REQUIRED");
         verify(nonceGuard, never()).tryConsume(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void fotoObligatoria_conEvidenciaVerificada_esAceptada() {
+        baseStubsWithPolicy(new WorkSitePolicyPort.SitePolicy(null, true, false));
+        noScheduleStub();
+        when(attendance.findLastAcceptedEvent(tenantId, userId)).thenReturn(Optional.empty());
+        when(nonceGuard.tryConsume(eq(tenantId), eq(siteId), eq("nonce-1"), eq(userId), any(), any())).thenReturn(true);
+        evidenceStub(EvidenceStoragePort.Outcome.VALID);
+
+        AttendanceResult result = service.register(tenantId, userId, cmdWithEvidence(VALID_KEY));
+
+        assertThat(result.status()).isEqualTo("ACCEPTED");
+        // El bucket persistido es el del servidor, no el que declaró el cliente.
+        assertThat(savedRecord().evidence().bucket()).isEqualTo("evidence");
+        assertThat(savedRecord().evidence().key()).isEqualTo(VALID_KEY);
+    }
+
+    /**
+     * El agujero que cerró RF-18: antes bastaba con enviar cualquier cadena en {@code evidenceKey}
+     * para dar por cumplida la exigencia de foto, porque nadie comprobaba que el objeto existiera.
+     */
+    @Test
+    void fotoObligatoria_conClaveInventada_esRechazada() {
+        baseStubsWithPolicy(new WorkSitePolicyPort.SitePolicy(null, true, false));
+        noScheduleStub();
+        when(attendance.findLastAcceptedEvent(tenantId, userId)).thenReturn(Optional.empty());
+        evidenceStub(EvidenceStoragePort.Outcome.MISSING);
+
+        AttendanceResult result = service.register(tenantId, userId, cmdWithEvidence("inventada"));
+
+        assertThat(result.status()).isEqualTo("REJECTED");
+        assertThat(result.rejectionReason()).isEqualTo("PHOTO_REQUIRED");
+        assertThat(result.flags()).contains("EVIDENCE_REJECTED_MISSING");
+    }
+
+    @Test
+    void fotoObligatoria_conClaveDeOtroUsuario_esRechazada() {
+        baseStubsWithPolicy(new WorkSitePolicyPort.SitePolicy(null, true, false));
+        noScheduleStub();
+        when(attendance.findLastAcceptedEvent(tenantId, userId)).thenReturn(Optional.empty());
+        evidenceStub(EvidenceStoragePort.Outcome.FOREIGN_PREFIX);
+
+        AttendanceResult result = service.register(tenantId, userId, cmdWithEvidence("t/otro/s/x/u/y/z.jpg"));
+
+        assertThat(result.status()).isEqualTo("REJECTED");
+        assertThat(result.rejectionReason()).isEqualTo("PHOTO_REQUIRED");
+    }
+
+    /** Sin poder verificar la evidencia se falla cerrado: es preferible bloquear que aceptar una foto fantasma. */
+    @Test
+    void fotoObligatoria_conAlmacenamientoCaido_esRechazada() {
+        baseStubsWithPolicy(new WorkSitePolicyPort.SitePolicy(null, true, false));
+        noScheduleStub();
+        when(attendance.findLastAcceptedEvent(tenantId, userId)).thenReturn(Optional.empty());
+        evidenceStub(EvidenceStoragePort.Outcome.UNAVAILABLE);
+
+        AttendanceResult result = service.register(tenantId, userId, cmdWithEvidence(VALID_KEY));
+
+        assertThat(result.status()).isEqualTo("REJECTED");
+        assertThat(result.rejectionReason()).isEqualTo("PHOTO_REQUIRED");
+    }
+
+    /**
+     * Con la foto opcional, un fallo de subida no puede costarle el fichaje al colaborador: se acepta
+     * el registro sin evidencia y queda la bandera para que el supervisor lo revise.
+     */
+    @Test
+    void fotoOpcional_conEvidenciaInvalida_seAceptaSinEvidencia() {
+        happyPathStubs();
+        when(attendance.findLastAcceptedEvent(tenantId, userId)).thenReturn(Optional.empty());
+        evidenceStub(EvidenceStoragePort.Outcome.MISSING);
+
+        AttendanceResult result = service.register(tenantId, userId, cmdWithEvidence("inventada"));
+
+        assertThat(result.status()).isEqualTo("ACCEPTED");
+        assertThat(result.flags()).contains("EVIDENCE_REJECTED_MISSING");
+        assertThat(savedRecord().evidence()).isNull();
+    }
+
+    /** La evidencia verificada se conserva aunque el registro se rechace: prueba de un intento real. */
+    @Test
+    void evidenciaVerificada_sePersisteAunqueElRegistroSeaRechazado() {
+        when(idempotency.find(eq(tenantId), any())).thenReturn(Optional.empty());
+        when(qrValidation.verify("qr"))
+                .thenReturn(new QrValidationPort.QrCheck(true, false, tenantId, siteId, "nonce-1"));
+        when(fraudCheck.evaluate(anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean()))
+                .thenReturn(new FraudCheckPort.FraudCheckResult(List.of(), false, null));
+        // Fuera de la geocerca: el registro se rechazará antes de llegar a la política de foto.
+        when(geofenceCheck.check(eq(tenantId), eq(siteId), anyDouble(), anyDouble()))
+                .thenReturn(new GeofenceCheckPort.GeofenceCheck(true, false, 900.0, 50.0));
+        permissiveSiteStub();
+        noScheduleStub();
+        evidenceStub(EvidenceStoragePort.Outcome.VALID);
+
+        AttendanceResult result = service.register(tenantId, userId, cmdWithEvidence(VALID_KEY));
+
+        assertThat(result.rejectionReason()).isEqualTo("OUT_OF_GEOFENCE");
+        assertThat(savedRecord().evidence()).isNotNull();
+        assertThat(savedRecord().evidence().key()).isEqualTo(VALID_KEY);
     }
 
     @Test

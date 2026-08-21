@@ -35,6 +35,8 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-minioadmin}
+      # Habilita el cifrado en reposo (SSE-S3) del bucket de evidencias (RNF-08).
+      MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY:-nexus-evidence:dvm3hSV4ldi0rS4Ui6PUyQP9m/4yoWBUcQciYY4Im3Y=}
     ports:
       - "9000:9000"   # API S3
       - "9001:9001"   # Consola
@@ -61,6 +63,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      minio:
+        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: dev
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-nexus}
@@ -69,6 +73,13 @@ services:
       REDIS_HOST: redis
       MAIL_HOST: mailhog
       MAIL_PORT: 1025
+      # Evidencias (RF-18). En dev el cliente llega a MinIO por localhost:9000, así que ese es
+      # también el endpoint con el que se firman las URLs.
+      STORAGE_MINIO_ENDPOINT: http://minio:9000
+      STORAGE_MINIO_PUBLIC_ENDPOINT: ${STORAGE_MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
+      STORAGE_MINIO_BUCKET: ${STORAGE_MINIO_BUCKET:-evidence}
+      MINIO_USER: ${MINIO_USER:-minioadmin}
+      MINIO_PASSWORD: ${MINIO_PASSWORD:-minioadmin}
     ports:
       - "8080:8080"
 
@@ -86,6 +97,7 @@ services:
     depends_on:
       - backend
       - web
+      - minio
     ports:
       - "8443:443"
       - "8081:80"

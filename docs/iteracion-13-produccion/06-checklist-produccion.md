@@ -8,7 +8,8 @@
 - [ ] Secretos en Vault/Secret Manager (no en imágenes ni repo).
 - [ ] Autorización por destino en **WebSocket** (interceptor STOMP que valide tenant/ámbito).
 - [ ] Revisión de dependencias (SCA) y escaneo de imágenes.
-- [ ] Cifrado en reposo de evidencias (MinIO SSE) y datos sensibles; política de datos biométricos (RNF-22).
+- [x] Cifrado en reposo de evidencias (MinIO SSE-S3, aplicado al bucket por `StorageBucketInitializer` al arrancar). Requiere `MINIO_KMS_SECRET_KEY` en el contenedor de MinIO: sin ella el bucket queda **sin cifrar** y el backend lo avisa por log.
+- [ ] Cifrado en reposo del resto de datos sensibles; política de datos biométricos (RNF-22).
 
 ## Fiabilidad / datos
 - [ ] Backups automatizados de PostgreSQL + prueba de restauración.

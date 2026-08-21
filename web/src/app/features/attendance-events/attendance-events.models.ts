@@ -1,5 +1,6 @@
 /** Un registro individual de asistencia (espejo de AttendanceEventDto). */
 export interface AttendanceEvent {
+  recordId: string;
   serverTime: string; // ISO datetime
   userId: string;
   employeeName?: string;
@@ -8,6 +9,12 @@ export interface AttendanceEvent {
   eventType: string;
   status: string;
   rejectionReason?: string | null;
+  /** Hay foto asociada. La URL se pide aparte al abrir el detalle porque caduca en minutos. */
+  hasEvidence: boolean;
+  biometricVerified: boolean;
+  gpsAccuracyM?: number | null;
+  distanceToSiteM?: number | null;
+  source?: string;
 }
 
 /** Etiquetas en español de los tipos de evento. */

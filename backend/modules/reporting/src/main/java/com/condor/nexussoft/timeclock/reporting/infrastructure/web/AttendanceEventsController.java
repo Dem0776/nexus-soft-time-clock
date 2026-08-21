@@ -28,8 +28,14 @@ public class AttendanceEventsController {
         this.jdbc = jdbc;
     }
 
-    /** Un evento de asistencia crudo con el nombre del colaborador y el sitio. */
+    /**
+     * Un evento de asistencia crudo con el nombre del colaborador y el sitio.
+     *
+     * <p>{@code hasEvidence} indica si el registro tiene foto asociada; la URL no viaja aquí porque
+     * caduca en un par de minutos, así que el portal la pide bajo demanda al abrir el detalle.
+     */
     public record AttendanceEventDto(
+            String recordId,
             OffsetDateTime serverTime,
             String userId,
             String employeeName,
@@ -37,7 +43,12 @@ public class AttendanceEventsController {
             String workSite,
             String eventType,
             String status,
-            String rejectionReason) {}
+            String rejectionReason,
+            boolean hasEvidence,
+            boolean biometricVerified,
+            Double gpsAccuracyM,
+            Double distanceToSiteM,
+            String source) {}
 
     @GetMapping("/attendance-events")
     public List<AttendanceEventDto> events(
@@ -50,14 +61,20 @@ public class AttendanceEventsController {
 
         return jdbc.query(
                 """
-                select ar.server_time,
+                select ar.id,
+                       ar.server_time,
                        ar.user_id,
                        trim(concat(u.first_name, ' ', u.last_name)) as employee_name,
                        u.employee_code,
                        ws.name as work_site,
                        ar.event_type,
                        ar.status,
-                       ar.rejection_reason
+                       ar.rejection_reason,
+                       (ar.evidence_key is not null) as has_evidence,
+                       ar.biometric_verified,
+                       ar.gps_accuracy_m,
+                       ar.distance_to_site_m,
+                       ar.source
                 from attendance_records ar
                 join users u on u.id = ar.user_id
                 left join work_sites ws on ws.id = ar.work_site_id
@@ -66,15 +83,27 @@ public class AttendanceEventsController {
                   and ar.server_time < ?
                 order by ar.server_time desc
                 """,
-                (rs, i) -> new AttendanceEventDto(
-                        rs.getObject("server_time", OffsetDateTime.class),
-                        rs.getString("user_id"),
-                        rs.getString("employee_name"),
-                        rs.getString("employee_code"),
-                        rs.getString("work_site"),
-                        rs.getString("event_type"),
-                        rs.getString("status"),
-                        rs.getString("rejection_reason")),
+                (rs, i) -> {
+                    double accuracy = rs.getDouble("gps_accuracy_m");
+                    Double accuracyM = rs.wasNull() ? null : accuracy;
+                    double distance = rs.getDouble("distance_to_site_m");
+                    Double distanceM = rs.wasNull() ? null : distance;
+                    return new AttendanceEventDto(
+                            rs.getString("id"),
+                            rs.getObject("server_time", OffsetDateTime.class),
+                            rs.getString("user_id"),
+                            rs.getString("employee_name"),
+                            rs.getString("employee_code"),
+                            rs.getString("work_site"),
+                            rs.getString("event_type"),
+                            rs.getString("status"),
+                            rs.getString("rejection_reason"),
+                            rs.getBoolean("has_evidence"),
+                            rs.getBoolean("biometric_verified"),
+                            accuracyM,
+                            distanceM,
+                            rs.getString("source"));
+                },
                 TenantContext.require(), fromTs, toTs);
     }
 }

@@ -59,6 +59,28 @@ security:
     access-ttl-seconds: ${SECURITY_JWT_ACCESS_TTL_SECONDS:900}   # vida del access token (15 min)
     refresh-ttl-days: ${SECURITY_JWT_REFRESH_TTL_DAYS:30}        # vida del refresh token (ventana deslizante)
 
+# Almacenamiento de evidencias fotográficas (RF-18, ADR-008).
+# La subida es directa del cliente a MinIO con URL prefirmada, así que `public-endpoint` debe ser
+# el origen que el cliente ve (NGINX): SigV4 firma el Host y una firma emitida contra el endpoint
+# interno fallaría con SignatureDoesNotMatch. NGINX publica MinIO en /evidence/, que coincide con
+# el nombre del bucket para que el path canónico de la firma cuadre sin reescrituras.
+storage:
+  minio:
+    enabled: ${STORAGE_MINIO_ENABLED:true}
+    endpoint: ${STORAGE_MINIO_ENDPOINT:http://localhost:9000}
+    public-endpoint: ${STORAGE_MINIO_PUBLIC_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_USER:minioadmin}
+    secret-key: ${MINIO_PASSWORD:minioadmin}
+    bucket: ${STORAGE_MINIO_BUCKET:evidence}
+    region: ${STORAGE_MINIO_REGION:us-east-1}
+    put-ttl-seconds: ${STORAGE_MINIO_PUT_TTL_SECONDS:300}
+    get-ttl-seconds: ${STORAGE_MINIO_GET_TTL_SECONDS:120}
+    max-bytes: ${STORAGE_MINIO_MAX_BYTES:2097152}          # 2 MiB
+    allowed-content-types: image/jpeg,image/webp
+    upload-freshness-seconds: ${STORAGE_MINIO_FRESHNESS_SECONDS:3600}
+    sse: ${STORAGE_MINIO_SSE:SSE_S3}
+    retention-days: ${STORAGE_MINIO_RETENTION_DAYS:400}
+
 # Observabilidad (Prometheus/Grafana, RNF-11)
 management:
   endpoints:
