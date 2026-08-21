@@ -52,12 +52,20 @@ jobs:
   # -------------------------------------------------------------------
   mobile:
     runs-on: ubuntu-latest
+    # El codegen puede colgarse en vez de fallar (ver `flutter-version` abajo): sin este
+    # tope el job se queda horas ocupando un runner hasta que alguien lo cancela a mano.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # Fijada a propósito. Seguir `stable` a ciegas rompió el job: el analyzer que
+          # arrastra el codegen no entiende la sintaxis de los SDK más nuevos y build_runner
+          # se cuelga en lugar de fallar. Subir esta versión exige revalidar el codegen.
+          flutter-version: '3.44.8'
+          cache: true
       - name: Pub get
         working-directory: mobile
         run: flutter pub get
@@ -66,7 +74,7 @@ jobs:
         run: flutter gen-l10n
       - name: build_runner build
         working-directory: mobile
-        run: dart run build_runner build --delete-conflicting-outputs
+        run: dart run build_runner build
       #- name: Analyze
       #  working-directory: mobile
       #  run: flutter analyze

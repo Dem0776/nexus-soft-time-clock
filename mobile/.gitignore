@@ -4,9 +4,7 @@
 build/
 .flutter-plugins
 .flutter-plugins-dependencies
-pubspec.lock
 *.g.dart
-*.freezed.dart
 lib/l10n/app_localizations*.dart
 .idea/
 .vscode/

@@ -24,9 +24,7 @@ web/coverage/
 mobile/.dart_tool/
 mobile/build/
 mobile/.flutter-plugins*
-mobile/pubspec.lock
 mobile/**/*.g.dart
-mobile/**/*.freezed.dart
 
 # --- Infra / datos locales ---
 *.pid
