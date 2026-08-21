@@ -11,7 +11,11 @@
 #                         (Portainer lo usa para clonar el repo privado)
 #   DB_PASSWORD           debe COINCIDIR con la del stack ya desplegado
 #   SECURITY_QR_SECRET    idem
-# Opcional (si cambian): variables PORTAINER_URL, APP_URL, STACK_ID, etc.
+#   MINIO_PASSWORD        idem — credencial del storage de evidencias
+#   SECURITY_JWT_PRIVATE_KEY / SECURITY_JWT_PUBLIC_KEY
+#                         par RSA de firma del JWT, copiado del stack en Portainer
+# Opcionales: el secret MINIO_KMS_SECRET_KEY (cifrado en reposo del bucket) y las
+# variables PORTAINER_URL, APP_URL, STACK_ID, etc. (solo si cambian).
 # =====================================================================
 name: Deploy
 
@@ -61,6 +65,11 @@ jobs:
           GH_PAT: ${{ secrets.GH_PAT }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           SECURITY_QR_SECRET: ${{ secrets.SECURITY_QR_SECRET }}
+          # Par RSA de firma del JWT. Portainer reemplaza la env del stack en cada redeploy,
+          # así que si no viajan aquí se pierden: el backend regenera la llave en memoria y
+          # se invalidan todas las sesiones del móvil. Se pegan tal cual salen del PEM.
+          SECURITY_JWT_PRIVATE_KEY: ${{ secrets.SECURITY_JWT_PRIVATE_KEY }}
+          SECURITY_JWT_PUBLIC_KEY: ${{ secrets.SECURITY_JWT_PUBLIC_KEY }}
           # Credencial del storage de evidencias (RF-18). Sin ella el script aborta.
           MINIO_PASSWORD: ${{ secrets.MINIO_PASSWORD }}
           # Llave del KMS embebido de MinIO: habilita el cifrado en reposo del bucket (RNF-08).

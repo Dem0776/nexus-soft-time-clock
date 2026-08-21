@@ -74,6 +74,14 @@ MINIO_KMS_SECRET_KEY="${MINIO_KMS_SECRET_KEY:-}"
 # el mismo que APP_URL, que es justo por donde entran el portal y la app.
 PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-$APP_URL}"
 
+# Par RSA con el que se firma el JWT. Van aquí porque Portainer REEMPLAZA la configuración de
+# entorno del stack con la que se envía en el redeploy (ver el array `env` más abajo): si no
+# viajan en el payload se pierden, el backend regenera la llave en memoria y se invalidan
+# TODAS las sesiones del móvil. Se copian de Portainer → Stacks → Environment variables.
+SECURITY_JWT_PRIVATE_KEY="${SECURITY_JWT_PRIVATE_KEY:-}"
+SECURITY_JWT_PUBLIC_KEY="${SECURITY_JWT_PUBLIC_KEY:-}"
+SECURITY_JWT_KEY_ID="${SECURITY_JWT_KEY_ID:-nexus-rsa}"
+
 # --- Validar secretos obligatorios -----------------------------------
 missing=()
 [[ -z "${PORTAINER_PASS:-}" ]]      && missing+=("PORTAINER_PASS")
@@ -81,19 +89,37 @@ missing=()
 [[ -z "${DB_PASSWORD:-}" ]]         && missing+=("DB_PASSWORD")
 [[ -z "${SECURITY_QR_SECRET:-}" ]] && missing+=("SECURITY_QR_SECRET")
 [[ -z "${MINIO_PASSWORD:-}" ]]      && missing+=("MINIO_PASSWORD")
+[[ -z "${SECURITY_JWT_PRIVATE_KEY:-}" ]] && missing+=("SECURITY_JWT_PRIVATE_KEY")
+[[ -z "${SECURITY_JWT_PUBLIC_KEY:-}" ]]  && missing+=("SECURITY_JWT_PUBLIC_KEY")
 if (( ${#missing[@]} )); then
   echo "ERROR: faltan variables obligatorias: ${missing[*]}" >&2
   echo "       Defínelas en $SCRIPT_DIR/.env (ver .env.example) o expórtalas." >&2
+  if [[ "${missing[*]}" == *SECURITY_JWT_* ]]; then
+    echo "       El par SECURITY_JWT_* se copia de Portainer → Stacks → nexus-time-clock →" >&2
+    echo "       Environment variables (el PEM en UNA línea con \n literales). Es obligatorio" >&2
+    echo "       porque el redeploy REEMPLAZA la env del stack: sin enviarlo se borraría y" >&2
+    echo "       todas las sesiones del móvil se invalidarían." >&2
+  fi
   exit 1
 fi
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "ERROR: falta '$1' en el PATH" >&2; exit 1; }; }
 need curl
 
-# JSON-escape de un string (para valores con caracteres especiales)
+# JSON-escape de un string (para valores con caracteres especiales).
+# Los patrones van entrecomillados a propósito: sin comillas bash reinterpreta las barras del
+# reemplazo y la sustitución de la barra invertida quedaba en un no-op, dejándola sin escapar.
+# Importa para el PEM de las llaves JWT, que es justo una ristra de "\n".
+# El salto de línea real se traduce a un "\n" LITERAL (no al escape JSON, que volvería a ser
+# un salto real): la env de un stack de Portainer es de una línea por variable, y de paso vale
+# tanto el PEM pegado en una sola línea como en varias, que es como lo guarda un secret de CI.
 json_escape() {
   local s=$1
-  s=${s//\\/\\\\}; s=${s//\"/\\\"}
+  s=${s//'\'/'\\'}
+  s=${s//'"'/'\"'}
+  s=${s//$'\r'/}
+  s=${s//$'\n'/'\\n'}
+  s=${s//$'\t'/'\t'}
   printf '%s' "$s"
 }
 
@@ -112,6 +138,10 @@ ok "Autenticado."
 
 # --- 2) Redespliegue -------------------------------------------------
 log "Redesplegando stack Id $STACK_ID (ref $GIT_REF, pullImage=$PULL_IMAGE)…"
+# OJO: Portainer REEMPLAZA la configuración de entorno del stack por este array (hace
+# `stack.Env = payload.Env`), no la fusiona con la existente. Cualquier variable fijada a mano
+# en la UI que no esté aquí desaparece en el redespliegue, así que al añadir una env nueva al
+# stack hay que añadirla también a esta lista.
 PAYLOAD=$(cat <<JSON
 {
   "repositoryAuthentication": true,
@@ -126,6 +156,9 @@ PAYLOAD=$(cat <<JSON
     {"name":"DB_USER","value":"$(json_escape "$DB_USER")"},
     {"name":"DB_PASSWORD","value":"$(json_escape "$DB_PASSWORD")"},
     {"name":"SECURITY_QR_SECRET","value":"$(json_escape "$SECURITY_QR_SECRET")"},
+    {"name":"SECURITY_JWT_PRIVATE_KEY","value":"$(json_escape "$SECURITY_JWT_PRIVATE_KEY")"},
+    {"name":"SECURITY_JWT_PUBLIC_KEY","value":"$(json_escape "$SECURITY_JWT_PUBLIC_KEY")"},
+    {"name":"SECURITY_JWT_KEY_ID","value":"$(json_escape "$SECURITY_JWT_KEY_ID")"},
     {"name":"HTTP_PORT","value":"$(json_escape "$HTTP_PORT")"},
     {"name":"MINIO_USER","value":"$(json_escape "$MINIO_USER")"},
     {"name":"MINIO_PASSWORD","value":"$(json_escape "$MINIO_PASSWORD")"},
