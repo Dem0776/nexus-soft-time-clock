@@ -260,7 +260,7 @@ Si algo falla, revisa **Logs** de cada contenedor desde Portainer
 | Build falla por memoria | Host sin RAM para Maven/Node | Usa método B (registry) |
 | Puerto en uso | `HTTP_PORT` ocupado en el host | Cambia `HTTP_PORT` a otro valor libre |
 | Stack no arranca: `falta MINIO_PASSWORD` / `falta PUBLIC_BASE_URL` | Variables del storage sin definir | Añádelas en Environment variables (§3) |
-| `minio` nunca llega a *healthy* y `backend` no arranca | `backend` espera a `minio` sano (`depends_on`) | Revisa logs de `minio`: una `MINIO_KMS_SECRET_KEY` mal formada (no decodifica a 32 bytes) impide el arranque |
+| `minio` nunca llega a *healthy* y `backend` no arranca | `backend` espera a `minio` sano (`depends_on`) | Revisa logs de `minio`: un `FATAL ... KMS` señala una `MINIO_KMS_SECRET_KEY` mal formada (falta el prefijo `nombre:` o no decodifica a 32 bytes). `scripts/redeploy.sh` valida el formato antes de desplegar |
 | Al subir la foto: `SignatureDoesNotMatch` | `PUBLIC_BASE_URL` no coincide con el origen real del cliente | Ponle el mismo esquema/host/puerto por el que se entra (§3) |
 | Al subir la foto: `413 Request Entity Too Large` | Límite del proxy | `client_max_body_size` de `/evidence/` en `infra/nginx/nginx.conf` (3m); súbelo si aumentas `STORAGE_MINIO_MAX_BYTES` |
 | Las sesiones del móvil caen tras cada despliegue | El stack perdió el par `SECURITY_JWT_*` y el backend regenera la llave | Vuelve a definirlo (§3); si redespliegas con `scripts/redeploy.sh`, debe viajar en su payload porque Portainer **reemplaza** la env del stack |

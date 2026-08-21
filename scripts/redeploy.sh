@@ -103,6 +103,34 @@ if (( ${#missing[@]} )); then
   exit 1
 fi
 
+# --- Validar el formato de la llave del KMS ---------------------------
+# Vacía es válida: MinIO arranca y el bucket queda sin cifrar (el backend lo avisa por log).
+# Con valor tiene que ser "nombre:base64-de-32-bytes"; cualquier otra cosa hace que MinIO
+# muera al arrancar con un FATAL. El contenedor queda entonces unhealthy y Portainer aborta
+# el stack ENTERO tras varios minutos con un opaco "dependency failed to start", sin decir
+# nunca que el problema era esta variable. Mejor cazarlo aquí, en un segundo.
+if [[ -n "$MINIO_KMS_SECRET_KEY" ]]; then
+  kms_err=""
+  kms_key=${MINIO_KMS_SECRET_KEY#*:}
+  if [[ "$MINIO_KMS_SECRET_KEY" != *:* ]]; then
+    kms_err="le falta el prefijo 'nombre:' (MinIO: invalid secret key format)"
+  elif [[ -z "${MINIO_KMS_SECRET_KEY%%:*}" ]]; then
+    kms_err="el nombre de la llave, antes de ':', está vacío"
+  elif [[ -z "$kms_key" ]]; then
+    kms_err="no hay clave después de ':' (MinIO: invalid key length 0)"
+  elif [[ ! "$kms_key" =~ ^[A-Za-z0-9+/]{43}=$ ]]; then
+    kms_err="la clave no es base64 de 32 bytes exactos (MinIO: illegal base64 data)"
+  fi
+  if [[ -n "$kms_err" ]]; then
+    echo "ERROR: MINIO_KMS_SECRET_KEY con formato inválido: $kms_err" >&2
+    echo "       Formato esperado:  nombre:clave-base64" >&2
+    echo '       Genérala con:      echo "nexus-evidence:$(openssl rand -base64 32)"' >&2
+    echo "       Si no quieres cifrado en reposo, déjala vacía: MinIO arranca igual y el" >&2
+    echo "       bucket queda SIN cifrar (RNF-08 pide cifrarlo)." >&2
+    exit 1
+  fi
+fi
+
 need() { command -v "$1" >/dev/null 2>&1 || { echo "ERROR: falta '$1' en el PATH" >&2; exit 1; }; }
 need curl
 

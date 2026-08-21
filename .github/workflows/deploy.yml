@@ -73,8 +73,10 @@ jobs:
           # Credencial del storage de evidencias (RF-18). Sin ella el script aborta.
           MINIO_PASSWORD: ${{ secrets.MINIO_PASSWORD }}
           # Llave del KMS embebido de MinIO: habilita el cifrado en reposo del bucket (RNF-08).
-          # Debe decodificar a 32 bytes exactos o MinIO no arranca. Si se omite, el bucket queda
-          # SIN cifrar y el backend lo avisa por log al arrancar.
+          # Formato "nombre:base64", con la clave decodificando a 32 bytes exactos — pegar solo
+          # la salida de `openssl rand -base64 32`, sin el prefijo, hace que MinIO no arranque y
+          # tumba el stack completo (el script valida el formato antes de desplegar). Si se
+          # omite, el bucket queda SIN cifrar y el backend lo avisa por log al arrancar.
           MINIO_KMS_SECRET_KEY: ${{ secrets.MINIO_KMS_SECRET_KEY }}
           # Overrides opcionales (si no se definen, el script usa sus defaults).
           PORTAINER_URL: ${{ vars.PORTAINER_URL }}
