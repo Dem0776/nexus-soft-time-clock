@@ -16,13 +16,15 @@ Portainer levanta un **stack** (compose) con estos servicios en una red interna
 privada. Solo NGINX expone un puerto al exterior:
 
 ```
-                 ┌─────────── Portainer stack: nexus-time-clock ───────────┐
+                 ┌─────────── Portainer stack: nexus-time-clock ────────────┐
    Internet ──▶  │  nginx  ──▶  web (Angular/NGINX)   [ / ]                 │
    (puerto       │    │                                                     │
-    HTTP_PORT)   │    └──────▶  backend (Spring Boot)  [ /api /ws /actuator]│
-                 │                   │        │                             │
-                 │                   ▼        ▼                             │
-                 │               postgres    redis                         │
+    HTTP_PORT)   │    ├──────▶  backend (Spring Boot)  [ /api /ws /actuator]│
+                 │    │              │        │                             │
+                 │    │              ▼        ▼                             │
+                 │    │          postgres    redis                          │
+                 │    │                                                     │
+                 │    └──────▶  minio (evidencias)  [ /evidence/ ]          │
                  └──────────────────────────────────────────────────────────┘
 ```
 
@@ -33,10 +35,14 @@ privada. Solo NGINX expone un puerto al exterior:
   publicados). El backend se conecta por nombre de servicio (`postgres`, `redis`).
 - **Flyway** aplica las migraciones (`db/migration`) automáticamente al arrancar
   el backend; no hay paso manual de esquema.
+- `minio` guarda las **evidencias fotográficas** (RF-18) y tampoco publica puertos:
+  se llega por NGINX en `/evidence/`, que es el mismo nombre del bucket. El cliente
+  sube la foto **directo a MinIO** con una URL prefirmada que emite el backend, así
+  que ese prefijo tiene que ser alcanzable desde el móvil y el portal.
 
-> **MinIO (evidencias) y SMTP (notificaciones)** no se incluyen en el stack
-> mínimo. Si tu iteración los requiere, añádelos como servicios extra o apunta el
-> backend a instancias gestionadas mediante variables de entorno.
+> **SMTP (notificaciones)** no se incluye en el stack mínimo. Si tu iteración lo
+> requiere, añádelo como servicio extra o apunta el backend a una instancia
+> gestionada mediante variables de entorno.
 
 ---
 
@@ -44,7 +50,7 @@ privada. Solo NGINX expone un puerto al exterior:
 
 1. **Portainer** operativo y conectado a un entorno Docker (local o Agent).
 2. En el host Docker: acceso a Internet para descargar imágenes base
-   (`postgis/postgis`, `redis`, `nginx`, `maven`, `node`).
+   (`postgis/postgis`, `redis`, `minio/minio`, `nginx`, `maven`, `node`).
 3. **Repositorio Git accesible** desde Portainer (recomendado — método A), o un
    **registry de imágenes** donde publicar backend/web (método B).
 4. Recursos sugeridos del host: **≥ 4 vCPU, 8 GB RAM, 20 GB disco** (el build de
@@ -57,7 +63,7 @@ Los ficheros clave ya viven en el repo:
 | `infra/portainer-stack.yml` | Compose del stack (este manual lo usa) |
 | `infra/backend.Dockerfile` | Build multi-stage del backend (JRE 21) |
 | `infra/web.Dockerfile` | Build Angular → NGINX |
-| `infra/nginx/nginx.conf` | Reverse proxy (rutas web/API/ws) |
+| `infra/nginx/nginx.conf` | Reverse proxy (rutas web/API/ws y `/evidence/` → MinIO) |
 
 ---
 
@@ -71,6 +77,13 @@ arranca sin ellas.
 |---|:---:|---|---|
 | `DB_PASSWORD` | 🔴 | — | Contraseña de PostgreSQL. **Usar valor fuerte.** |
 | `SECURITY_QR_SECRET` | 🔴 | — | Secreto HMAC para el QR firmado. **Rotar y guardar seguro.** |
+| `MINIO_PASSWORD` | 🔴 | — | Contraseña del storage de evidencias |
+| `PUBLIC_BASE_URL` | 🔴 | — | Origen público del stack, p. ej. `http://mi-host:8088` (ver aviso abajo) |
+| `SECURITY_JWT_PRIVATE_KEY` / `SECURITY_JWT_PUBLIC_KEY` | | — | Par RSA de firma del JWT, PEM en una línea con `\n` literales. **Sin ellas la llave se regenera en cada arranque y todas las sesiones caen.** |
+| `SECURITY_JWT_KEY_ID` | | `nexus-rsa` | Identificador de la llave en el JWKS |
+| `MINIO_USER` | | `minioadmin` | Usuario del storage de evidencias |
+| `STORAGE_MINIO_BUCKET` | | `evidence` | Bucket de evidencias. **Debe coincidir** con el prefijo `/evidence/` de NGINX |
+| `MINIO_KMS_SECRET_KEY` | | — | Llave del KMS embebido: activa el cifrado en reposo (SSE-S3, RNF-08). Sin ella el bucket queda **sin cifrar** y el backend lo avisa por log |
 | `DB_NAME` | | `nexus` | Nombre de la base de datos |
 | `DB_USER` | | `nexus` | Usuario de PostgreSQL |
 | `SPRING_PROFILES_ACTIVE` | | `prod` | Perfil de Spring |
@@ -82,8 +95,18 @@ arranca sin ellas.
 | `REGISTRY` / `TAG` | | — | Solo método B (registry) |
 
 > ⚠️ **Genera secretos fuertes**, por ejemplo:
-> `openssl rand -base64 32` para `SECURITY_QR_SECRET` y `DB_PASSWORD`.
-> Nunca los subas al repositorio.
+> `openssl rand -base64 32` para `SECURITY_QR_SECRET`, `DB_PASSWORD` y
+> `MINIO_PASSWORD`. Nunca los subas al repositorio.
+> Para `MINIO_KMS_SECRET_KEY` el formato es `nombre:clave-base64` y la clave debe
+> decodificar a 32 bytes exactos, p. ej.
+> `nexus-evidence:$(openssl rand -base64 32)`.
+
+> ⚠️ **`PUBLIC_BASE_URL` es el origen por el que el cliente entra al stack**
+> (`esquema://host:HTTP_PORT`), **sin barra final y sin `/evidence`**. Con él se
+> firman las URLs de subida: SigV4 firma la cabecera `Host`, así que si aquí va
+> otro host, otro puerto u otro esquema que los reales, **toda subida de evidencia
+> falla con `SignatureDoesNotMatch`**. Si más adelante pones un dominio con TLS
+> delante, hay que actualizarla a `https://tu-dominio`.
 
 ---
 
@@ -100,8 +123,9 @@ necesitas registry.
    - **Repository reference**: rama a desplegar (p. ej. `refs/heads/main`).
    - **Compose path**: `infra/portainer-stack.yml`.
    - **Authentication**: actívala si el repo es privado (usuario + token).
-5. En **Environment variables**, añade al menos `DB_PASSWORD` y
-   `SECURITY_QR_SECRET` (§3). Añade el resto según necesites.
+5. En **Environment variables**, añade al menos `DB_PASSWORD`,
+   `SECURITY_QR_SECRET`, `MINIO_PASSWORD` y `PUBLIC_BASE_URL` (§3): sin las cuatro
+   el stack ni siquiera arranca. Añade el resto según necesites.
 6. (Opcional) Activa **GitOps updates / polling** para redesplegar
    automáticamente cuando cambie la rama.
 7. Pulsa **Deploy the stack**.
@@ -160,7 +184,7 @@ En `infra/portainer-stack.yml`, en los servicios `backend` y `web`:
 
 ## 6. Verificación post-despliegue
 
-Con el stack **running** (5 contenedores en verde):
+Con el stack **running** (6 contenedores en verde):
 
 1. **Estado del backend** — desde el host o un contenedor de la red:
    ```bash
@@ -175,6 +199,22 @@ Con el stack **running** (5 contenedores en verde):
    `Successfully applied N migrations` sin errores.
 5. **Base de datos**: en logs de `postgres`, `database system is ready to accept
    connections`.
+6. **Evidencias — bucket listo**: en los logs de `backend`, las líneas del
+   `StorageBucketInitializer`:
+   ```
+   Bucket de evidencias 'evidence' creado.                      ← solo el 1er arranque
+   Cifrado en reposo SSE-S3 activo en el bucket 'evidence'.
+   Retención de evidencias fijada en 400 días para 'evidence'.
+   ```
+   Si en vez de la segunda aparece `NO se pudo activar SSE-S3`, falta
+   `MINIO_KMS_SECRET_KEY` en el contenedor `minio` y las fotos quedarán sin cifrar.
+7. **Evidencias — ruta pública**: `curl -i http://<host>:<HTTP_PORT>/evidence/`
+   debe devolver un **XML de MinIO** (`AccessDenied` / `NoSuchKey`). Si responde el
+   HTML del portal o un 404 de NGINX, la `location /evidence/` no enruta y ninguna
+   foto podrá subirse.
+8. **Ciclo completo de subida** (lo único que valida `PUBLIC_BASE_URL`): registra
+   una marcación con evidencia desde el móvil o el portal. Un
+   `SignatureDoesNotMatch` en la respuesta del `PUT` apunta siempre a esa variable.
 
 Si algo falla, revisa **Logs** de cada contenedor desde Portainer
 (Stacks → contenedor → Logs) y la §8.
@@ -187,11 +227,14 @@ Si algo falla, revisa **Logs** de cada contenedor desde Portainer
   delante un terminador TLS: un reverse proxy del host (Traefik, Caddy, NGINX del
   sistema con Let's Encrypt) o el balanceador de tu infraestructura. La app ya
   respeta `X-Forwarded-*` (`forward-headers-strategy: framework`).
-- **Persistencia.** Los volúmenes `pgdata` y `redisdata` conservan los datos. En
-  Portainer no marques *"prune"* al actualizar. Haz **backups** de `pgdata`
-  (`pg_dump`) periódicamente.
+- **Persistencia.** Los volúmenes `pgdata`, `redisdata` y `miniodata` conservan los
+  datos. En Portainer no marques *"prune"* al actualizar. Haz **backups** de
+  `pgdata` (`pg_dump`) periódicamente, y de `miniodata` si las evidencias son
+  prueba legal: crecen con cada marcación y solo expiran a los
+  `STORAGE_MINIO_RETENTION_DAYS` (400 días por defecto).
 - **Secretos.** Prefiere **Portainer Secrets** / gestor externo antes que texto
-  plano en variables del stack para `DB_PASSWORD` y `SECURITY_QR_SECRET`.
+  plano en variables del stack para `DB_PASSWORD`, `SECURITY_QR_SECRET`,
+  `MINIO_PASSWORD`, `MINIO_KMS_SECRET_KEY` y el par `SECURITY_JWT_*`.
 - **Host pequeño.** El build de Maven+Node consume RAM. Si el host de Portainer es
   modesto, usa el **método B** (imágenes ya construidas en CI) para no compilar en
   el servidor.
@@ -216,6 +259,11 @@ Si algo falla, revisa **Logs** de cada contenedor desde Portainer
 | `nginx` no arranca: no such file `nginx.conf` | Bind-mount sin fichero (web editor puro) | Usa método Repository o baja `nginx.conf` al host (ver §5.3) |
 | Build falla por memoria | Host sin RAM para Maven/Node | Usa método B (registry) |
 | Puerto en uso | `HTTP_PORT` ocupado en el host | Cambia `HTTP_PORT` a otro valor libre |
+| Stack no arranca: `falta MINIO_PASSWORD` / `falta PUBLIC_BASE_URL` | Variables del storage sin definir | Añádelas en Environment variables (§3) |
+| `minio` nunca llega a *healthy* y `backend` no arranca | `backend` espera a `minio` sano (`depends_on`) | Revisa logs de `minio`: una `MINIO_KMS_SECRET_KEY` mal formada (no decodifica a 32 bytes) impide el arranque |
+| Al subir la foto: `SignatureDoesNotMatch` | `PUBLIC_BASE_URL` no coincide con el origen real del cliente | Ponle el mismo esquema/host/puerto por el que se entra (§3) |
+| Al subir la foto: `413 Request Entity Too Large` | Límite del proxy | `client_max_body_size` de `/evidence/` en `infra/nginx/nginx.conf` (3m); súbelo si aumentas `STORAGE_MINIO_MAX_BYTES` |
+| Las sesiones del móvil caen tras cada despliegue | El stack perdió el par `SECURITY_JWT_*` y el backend regenera la llave | Vuelve a definirlo (§3); si redespliegas con `scripts/redeploy.sh`, debe viajar en su payload porque Portainer **reemplaza** la env del stack |
 
 ---
 
@@ -224,5 +272,6 @@ Si algo falla, revisa **Logs** de cada contenedor desde Portainer
 - Compose del stack: `infra/portainer-stack.yml`
 - Dockerfiles: `infra/backend.Dockerfile`, `infra/web.Dockerfile`
 - Reverse proxy: `infra/nginx/nginx.conf`
+- Evidencia fotográfica (RF-18): [`../iteracion-08-registro-asistencia/01-evidencia-fotografica.md`](../iteracion-08-registro-asistencia/01-evidencia-fotografica.md)
 - Guía general de despliegue: [`02-guia-despliegue.md`](02-guia-despliegue.md)
 - Topología de producción (K8s): [`../iteracion-02-arquitectura/08-despliegue.md`](../iteracion-02-arquitectura/08-despliegue.md)
