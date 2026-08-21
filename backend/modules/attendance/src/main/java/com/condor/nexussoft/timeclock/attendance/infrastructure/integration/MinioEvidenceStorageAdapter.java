@@ -3,6 +3,7 @@ package com.condor.nexussoft.timeclock.attendance.infrastructure.integration;
 import com.condor.nexussoft.timeclock.attendance.domain.port.out.EvidenceStoragePort;
 import com.condor.nexussoft.timeclock.platform.storage.ObjectStorage;
 import com.condor.nexussoft.timeclock.platform.storage.StorageProperties;
+import com.condor.nexussoft.timeclock.shared.domain.DomainException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -53,6 +54,11 @@ public class MinioEvidenceStorageAdapter implements EvidenceStoragePort {
 
     @Override
     public UploadTicket presignUpload(UUID tenantId, UUID userId, UUID workSiteId, Instant now) {
+        if (!storage.isAvailable()) {
+            // Mejor un código de negocio que el cliente pueda mostrar que un 500 opaco.
+            throw new DomainException("EVIDENCE_STORAGE_UNAVAILABLE",
+                    "El almacenamiento de evidencias no está disponible.");
+        }
         String key = prefix(tenantId, userId, workSiteId, now) + UUID.randomUUID() + ".jpg";
         var url = storage.presignPut(key, Duration.ofSeconds(props.putTtlSeconds()));
         return new UploadTicket(storage.bucket(), key, url.url(), url.expiresAt(), props.maxBytes());

@@ -30,7 +30,10 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "spring.autoconfigure.exclude="
                         + "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,"
                         + "org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration",
-                "outbox.relay-delay-ms=60000"
+                "outbox.relay-delay-ms=60000",
+                // Sin MinIO en el humo: el contexto debe arrancar igual con el almacenamiento
+                // desactivado, así que esta prueba también cubre ese camino.
+                "storage.minio.enabled=false"
         })
 class ApplicationSmokeIT {
 
